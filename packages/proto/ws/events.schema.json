@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-kefu.example.com/schemas/ws/events.json",
+  "title": "WS Server Events (server → client)",
+  "description": "服务端推送事件。所有事件以同一 frame 包装,通过 type 区分。详见 PRD 08-数据模型与接口.md §4.2。",
+  "type": "object",
+  "required": ["type", "session_id"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "msg.text",
+        "msg.image",
+        "msg.file",
+        "msg.card",
+        "msg.faq",
+        "msg.system",
+        "msg.chunk",
+        "msg.recall",
+        "event.queue_update",
+        "event.agent_join",
+        "event.agent_leave",
+        "event.session_close",
+        "event.announcement_update",
+        "event.quick_reply_update",
+        "event.faq_update",
+        "event.faq_card",
+        "event.live_snapshot",
+        "event.play_diagnostic",
+        "event.bridge_call"
+      ]
+    },
+    "seq": { "type": "integer", "minimum": 0 },
+    "ts": { "type": "integer" },
+    "session_id": { "type": "string" },
+    "msg_id": { "type": "string" },
+    "payload": { "type": "object", "additionalProperties": true }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "msg.chunk" } }, "required": ["type"] },
+      "then": {
+        "required": ["msg_id", "payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["chunk", "end"],
+            "properties": {
+              "chunk": { "type": "string" },
+              "end": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "event.queue_update" } }, "required": ["type"] },
+      "then": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["position", "eta_seconds"],
+            "properties": {
+              "position": { "type": "integer", "minimum": 0 },
+              "eta_seconds": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "event.agent_join" } }, "required": ["type"] },
+      "then": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["agent"],
+            "properties": {
+              "agent": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "integer" },
+                  "nickname": { "type": "string" },
+                  "avatar_url": { "type": "string", "format": "uri" },
+                  "skill_group": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "event.session_close" } }, "required": ["type"] },
+      "then": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "properties": {
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "event.faq_card" } }, "required": ["type"] },
+      "then": {
+        "required": ["msg_id", "payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["tree_id", "root_nodes"],
+            "properties": {
+              "tree_id": { "type": "string" },
+              "root_nodes": {
+                "type": "array",
+                "items": { "type": "object", "additionalProperties": true }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "event.faq_update" } }, "required": ["type"] },
+      "then": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["tree_id", "version"],
+            "properties": {
+              "tree_id": { "type": "string" },
+              "version": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "event.live_snapshot" } }, "required": ["type"] },
+      "then": {
+        "required": ["msg_id", "payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "properties": {
+              "room_id": { "type": ["integer", "null"] },
+              "vod_id": { "type": ["integer", "null"] },
+              "title": { "type": "string" },
+              "anchor": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "integer" },
+                  "nickname": { "type": "string" },
+                  "avatar_url": { "type": "string", "format": "uri" }
+                }
+              },
+              "qualities": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "event.play_diagnostic" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["msg_id", "payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["verdict", "summary"],
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": ["local_network", "cdn", "origin", "auth", "app_bug", "unknown"]
+              },
+              "summary": { "type": "string" },
+              "suggested_action": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["switch_quality", "reenter_room", "retry", "handoff", "none"]
+                  },
+                  "payload": { "type": "object", "additionalProperties": true }
+                }
+              },
+              "raw": { "type": "object", "additionalProperties": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "event.bridge_call" } }, "required": ["type"] },
+      "then": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["name", "args"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "enum": ["switchQuality", "reenterRoom", "openLink", "haptic", "minimize"]
+              },
+              "args": { "type": "object", "additionalProperties": true },
+              "require_confirm": { "type": "boolean", "default": true }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
