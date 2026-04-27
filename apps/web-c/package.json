@@ -16,6 +16,7 @@
     "@ai-kefu/design-tokens": "workspace:*",
     "@ai-kefu/proto": "workspace:*",
     "@ai-kefu/ui-glass": "workspace:*",
+    "@ai-kefu/ws-client": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.0"
