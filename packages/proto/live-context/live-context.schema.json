@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-kefu.example.com/schemas/live-context/v1.json",
+  "title": "LiveContext",
+  "description": "直播 / 点播业务上下文。由 H5(优先经 JSBridge 从宿主获取)上报,服务端会用业务系统覆盖关键身份字段以防伪造。版本 v1。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scene"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1",
+      "description": "协议版本,固定 v1"
+    },
+    "scene": {
+      "type": "string",
+      "enum": ["live_room", "vod_detail", "home", "settings", "anchor_console", "report_flow"],
+      "description": "进入客服时所处的场景"
+    },
+    "room_id": {
+      "type": ["integer", "null"],
+      "description": "直播间 ID(scene=live_room 时必填)",
+      "minimum": 0
+    },
+    "anchor_id": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "vod_id": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "program_title": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "play": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "客户端播放状态快照(最近一次)",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["playing", "buffering", "paused", "error", "idle"]
+        },
+        "quality": {
+          "type": "string",
+          "enum": ["auto", "240p", "360p", "480p", "720p", "1080p", "1440p", "4k"]
+        },
+        "bitrate_kbps": { "type": "integer", "minimum": 0 },
+        "fps": { "type": "integer", "minimum": 0, "maximum": 240 },
+        "first_frame_ms": { "type": "integer", "minimum": 0 },
+        "buffer_events_60s": { "type": "integer", "minimum": 0 },
+        "buffer_total_ms_60s": { "type": "integer", "minimum": 0 },
+        "last_error_code": {
+          "type": ["string", "null"],
+          "maxLength": 64
+        },
+        "cdn_node": {
+          "type": ["string", "null"],
+          "maxLength": 64
+        },
+        "stream_url_hash": {
+          "type": ["string", "null"],
+          "description": "流地址哈希,绝不上传明文 URL",
+          "pattern": "^[a-f0-9]{8,64}$"
+        },
+        "drm": { "type": "boolean" }
+      }
+    },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "platform": { "type": "string", "enum": ["iOS", "Android", "PC", "Pad", "TV"] },
+        "os": { "type": "string", "maxLength": 64 },
+        "app_ver": { "type": "string", "maxLength": 32 },
+        "model": { "type": "string", "maxLength": 64 }
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["wifi", "4g", "5g", "ethernet", "unknown"] },
+        "rtt_ms": { "type": "integer", "minimum": 0 },
+        "downlink_mbps": { "type": "number", "minimum": 0 }
+      }
+    },
+    "user": {
+      "type": "object",
+      "description": "用户态字段(后端会以业务系统反查覆盖,前端值仅为 hint)",
+      "additionalProperties": false,
+      "properties": {
+        "uid": { "type": ["integer", "null"] },
+        "level": { "type": ["string", "null"], "maxLength": 32 },
+        "is_anchor": { "type": "boolean" },
+        "is_minor_guard": { "type": "boolean" }
+      }
+    },
+    "entry": {
+      "type": "string",
+      "enum": ["bubble", "drawer", "fullscreen", "menu", "report_button", "agent_console"],
+      "description": "用户从哪类入口进入客服"
+    },
+    "report": {
+      "type": ["object", "null"],
+      "description": "若用户从举报路径进入,携带证据信息",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["porn", "abuse", "copyright", "minor", "other"] },
+        "evidence_clip_url": { "type": ["string", "null"], "format": "uri" },
+        "ts_in_stream": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    }
+  }
+}
