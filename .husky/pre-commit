@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+# Husky pre-commit hook — 仅对暂存文件跑 lint/format
+# 默认通过 lint-staged 执行,缺失依赖时跳过(避免 chicken-and-egg)。
+
+if [ -x "$(command -v pnpm)" ] && [ -d node_modules ]; then
+  pnpm exec lint-staged --concurrent false
+else
+  echo "[husky] 跳过 lint-staged(未安装依赖)"
+fi

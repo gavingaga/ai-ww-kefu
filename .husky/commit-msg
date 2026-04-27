@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Husky commit-msg hook — 校验 Conventional Commits
+
+if [ -x "$(command -v pnpm)" ] && [ -d node_modules ]; then
+  pnpm exec commitlint --edit "$1"
+else
+  echo "[husky] 跳过 commitlint(未安装依赖)"
+fi
