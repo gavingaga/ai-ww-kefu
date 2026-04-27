@@ -1,0 +1,32 @@
+{
+  "name": "@ai-kefu/ws-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "客户端 WebSocket wrapper(C 端 / 座席台 / sdk-jsbridge 共享)— reconnect + heartbeat + seq/ack/pull",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@ai-kefu/proto": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.2"
+  }
+}
