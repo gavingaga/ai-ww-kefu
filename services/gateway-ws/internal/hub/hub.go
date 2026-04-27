@@ -146,3 +146,14 @@ func (h *Hub) Stats() Stats {
 		Total:       h.counter.Load(),
 	}
 }
+
+// ActiveSessionIDs 返回当前节点上仍有连接的 session 列表(快照)。
+func (h *Hub) ActiveSessionIDs() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	out := make([]string, 0, len(h.bySID))
+	for sid := range h.bySID {
+		out = append(out, sid)
+	}
+	return out
+}

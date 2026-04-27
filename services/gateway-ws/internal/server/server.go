@@ -11,32 +11,41 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/ai-kefu/gateway-ws/internal/config"
+	"github.com/ai-kefu/gateway-ws/internal/dispatch"
 	"github.com/ai-kefu/gateway-ws/internal/frame"
 	"github.com/ai-kefu/gateway-ws/internal/hub"
 	"github.com/ai-kefu/gateway-ws/internal/wsconn"
 )
 
-// Server HTTP 服务器,持有 hub + 升级器 + router。
+// Server HTTP 服务器,持有 hub + 升级器 + router + dispatcher。
 type Server struct {
-	cfg      config.Config
-	hub      *hub.Hub
-	upgrader websocket.Upgrader
-	router   wsconn.Router
-	logger   *slog.Logger
+	cfg        config.Config
+	hub        *hub.Hub
+	dispatcher *dispatch.Dispatcher // 可空 — 单进程 noop 模式
+	upgrader   websocket.Upgrader
+	router     wsconn.Router
+	logger     *slog.Logger
 }
 
-// New 构造服务器。router 可为空(默认 echo)。
-func New(cfg config.Config, h *hub.Hub, router wsconn.Router, logger *slog.Logger) *Server {
+// New 构造服务器。router 可为空(默认 echo);dispatcher 可空(单进程 noop)。
+func New(
+	cfg config.Config,
+	h *hub.Hub,
+	router wsconn.Router,
+	dispatcher *dispatch.Dispatcher,
+	logger *slog.Logger,
+) *Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	originAllow := buildOriginCheck(cfg.AllowedOrigins)
 	return &Server{
-		cfg:      cfg,
-		hub:      h,
-		router:   router,
-		logger:   logger,
-		upgrader: websocket.Upgrader{CheckOrigin: originAllow, ReadBufferSize: 4096, WriteBufferSize: 4096},
+		cfg:        cfg,
+		hub:        h,
+		dispatcher: dispatcher,
+		router:     router,
+		logger:     logger,
+		upgrader:   websocket.Upgrader{CheckOrigin: originAllow, ReadBufferSize: 4096, WriteBufferSize: 4096},
 	}
 }
 
@@ -86,6 +95,14 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	s.hub.Register(c)
 	defer s.hub.Unregister(c)
+
+	// 跨节点路由绑定 + 解绑
+	if s.dispatcher != nil && c.SessionID() != "" {
+		_ = s.dispatcher.Bind(r.Context(), c.SessionID())
+		defer func() {
+			_ = s.dispatcher.Unbind(context.Background(), c.SessionID())
+		}()
+	}
 
 	// 欢迎帧
 	c.SendFrame(frame.Frame{
