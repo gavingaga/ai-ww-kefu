@@ -1,0 +1,36 @@
+[project]
+name = "ai-kefu-py"
+version = "0.0.0"
+description = "AI + 人工 客服系统(直播/点播)— Python 服务工作区"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    # AI 相关 Python 服务在此挂入,例如:
+    # "services/ai-hub",
+    # "services/llm-router",
+    # "services/kb-svc",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "B", "UP", "S", "ASYNC"]
+ignore = ["S101"]  # allow asserts in tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_optional = true

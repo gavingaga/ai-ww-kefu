@@ -1,0 +1,22 @@
+{
+  "name": "ai-kefu",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AI + 人工 客服系统(直播/点播)— Monorepo",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.10",
+    "pnpm": ">=9.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" run build",
+    "dev": "pnpm -r --parallel run dev",
+    "lint": "pnpm -r run lint",
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck",
+    "clean": "pnpm -r run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
