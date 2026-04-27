@@ -1,0 +1,127 @@
+/* ai-kefu 设计令牌 — CSS 自定义属性
+ * 在应用入口 import "@ai-kefu/design-tokens/tokens.css";
+ * 暗色模式自动跟随 [data-theme="dark"] 或 prefers-color-scheme: dark
+ */
+
+:root {
+  /* Brand */
+  --color-primary: #0a84ff;
+  --color-accent-from: #5e5ce6;
+  --color-accent-to: #bf5af2;
+
+  /* Text */
+  --color-text-primary: #1c1c1e;
+  --color-text-secondary: #3a3a3c;
+  --color-text-tertiary: #8e8e93;
+  --color-text-inverse: #ffffff;
+
+  /* Surfaces (Glassmorphism) */
+  --color-surface: rgba(255, 255, 255, 0.72);
+  --color-surface-alt: rgba(255, 255, 255, 0.55);
+  --color-border: rgba(255, 255, 255, 0.3);
+
+  /* Semantic */
+  --color-info: #0a84ff;
+  --color-success: #34c759;
+  --color-warning: #ff9f0a;
+  --color-danger: #ff3b30;
+  --color-critical: #ff453a;
+
+  /* Bubble */
+  --bubble-user: #0a84ff;
+  --bubble-agent: rgba(118, 118, 128, 0.16);
+  --bubble-system: rgba(118, 118, 128, 0.12);
+  --bubble-ai-from: #5e5ce6;
+  --bubble-ai-to: #bf5af2;
+
+  /* Radii */
+  --radius-capsule: 9999px;
+  --radius-card: 16px;
+  --radius-bubble: 18px;
+  --radius-button: 12px;
+  --radius-input: 22px;
+  --radius-sm: 8px;
+  --radius-xs: 4px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Typography */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", system-ui,
+    sans-serif;
+  --font-mono: "SF Mono", Menlo, Consolas, monospace;
+  --font-size-caption: 13px;
+  --font-size-body: 15px;
+  --font-size-body-emphasis: 17px;
+  --font-size-title: 22px;
+
+  /* Shadow */
+  --shadow-glass: 0 8px 32px rgba(31, 38, 135, 0.12);
+  --shadow-glass-hover: 0 12px 36px rgba(31, 38, 135, 0.18);
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-popover: 0 12px 28px rgba(0, 0, 0, 0.16);
+
+  /* Blur */
+  --blur-glass-weak: 12px;
+  --blur-glass: 24px;
+  --blur-glass-strong: 40px;
+
+  /* Motion */
+  --motion-fast: 180ms;
+  --motion-base: 280ms;
+  --motion-slow: 400ms;
+  --easing-standard: cubic-bezier(0.32, 0.72, 0, 1);
+  --easing-enter: cubic-bezier(0, 0, 0.2, 1);
+  --easing-exit: cubic-bezier(0.4, 0, 1, 1);
+  --easing-breathing: cubic-bezier(0.4, 0, 0.6, 1);
+
+  color-scheme: light dark;
+}
+
+[data-theme="dark"],
+:root[data-theme="auto"] {
+  /* nothing */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-text-primary: #ebebf5;
+    --color-text-secondary: #c7c7cc;
+    --color-text-tertiary: #8e8e93;
+    --color-text-inverse: #000000;
+    --color-surface: rgba(28, 28, 30, 0.72);
+    --color-surface-alt: rgba(28, 28, 30, 0.55);
+    --color-border: rgba(255, 255, 255, 0.1);
+    --bubble-agent: rgba(118, 118, 128, 0.24);
+    --bubble-system: rgba(118, 118, 128, 0.18);
+  }
+}
+
+[data-theme="dark"] {
+  --color-text-primary: #ebebf5;
+  --color-text-secondary: #c7c7cc;
+  --color-text-tertiary: #8e8e93;
+  --color-text-inverse: #000000;
+  --color-surface: rgba(28, 28, 30, 0.72);
+  --color-surface-alt: rgba(28, 28, 30, 0.55);
+  --color-border: rgba(255, 255, 255, 0.1);
+  --bubble-agent: rgba(118, 118, 128, 0.24);
+  --bubble-system: rgba(118, 118, 128, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+  }
+}
