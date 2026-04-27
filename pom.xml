@@ -33,8 +33,8 @@
     </properties>
 
     <modules>
-        <!-- 各服务子模块在 services/ 下;首次接入时在此添加,例如 -->
-        <!-- <module>services/session-svc</module> -->
+        <module>services/session-svc</module>
+        <!-- 后续:routing-svc / agent-bff / notify-svc / upload-svc / livectx-svc / tool-svc / audit-svc / report-svc -->
     </modules>
 
     <dependencyManagement>

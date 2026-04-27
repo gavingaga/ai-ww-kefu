@@ -1,0 +1,25 @@
+server:
+  port: ${SESSION_SVC_PORT:8081}
+  shutdown: graceful
+
+spring:
+  application:
+    name: session-svc
+  jackson:
+    default-property-inclusion: non_null
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+aikefu:
+  session:
+    history-page-size: 30
+    max-pending-handoff-seconds: 180
