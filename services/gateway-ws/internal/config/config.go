@@ -23,6 +23,12 @@ type Config struct {
 	PingPeriod           time.Duration
 	IdleSessionTimeoutS  int
 	GracefulShutdownTime time.Duration
+
+	// 后端依赖
+	SessionSvcURL string // session-svc base URL,空则不接入(只跑 EchoRouter)
+	NodeID        string // 当前节点 ID(用于 Registry 跨节点路由),空则按 hostname 生成
+	RegistryType  string // noop / mem / redis,默认 noop(单进程)
+	RedisAddr     string // Registry=redis 时使用
 }
 
 // Load 从环境变量读取配置。
@@ -42,6 +48,10 @@ func Load() Config {
 		PingPeriod:           54 * time.Second,
 		IdleSessionTimeoutS:  envInt("GATEWAY_IDLE_TIMEOUT_S", 600),
 		GracefulShutdownTime: 15 * time.Second,
+		SessionSvcURL:        envStr("SESSION_SVC_URL", ""),
+		NodeID:               envStr("GATEWAY_NODE_ID", ""),
+		RegistryType:         envStr("GATEWAY_REGISTRY", "noop"),
+		RedisAddr:            envStr("REDIS_ADDR", ""),
 	}
 }
 
