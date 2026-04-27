@@ -5,6 +5,14 @@ description = "AI + 人工 客服系统(直播/点播)— Python 服务工作区
 requires-python = ">=3.11"
 dependencies = []
 
+[dependency-groups]
+dev = [
+    "datamodel-code-generator>=0.26.1",
+    "ruff>=0.6.9",
+    "mypy>=1.11.2",
+    "pytest>=8.3.3",
+]
+
 [tool.uv.workspace]
 members = [
     # AI 相关 Python 服务在此挂入,例如:

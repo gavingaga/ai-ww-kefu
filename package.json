@@ -9,13 +9,17 @@
     "pnpm": ">=9.0"
   },
   "scripts": {
-    "build": "pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" run build",
+    "build": "pnpm --filter @ai-kefu/proto run build && pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" run build",
     "dev": "pnpm -r --parallel run dev",
     "lint": "pnpm -r run lint",
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "proto:lint": "pnpm --filter @ai-kefu/proto run lint",
+    "proto:validate": "pnpm --filter @ai-kefu/proto run validate",
+    "proto:gen": "pnpm --filter @ai-kefu/proto run gen",
+    "proto:check-breaking": "pnpm --filter @ai-kefu/proto run test",
     "prepare": "husky",
     "clean": "pnpm -r run clean && rm -rf node_modules"
   },

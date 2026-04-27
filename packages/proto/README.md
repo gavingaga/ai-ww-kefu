@@ -34,11 +34,53 @@ grpc/
 - JSON Schema 用 `ajv-cli validate`
 - gRPC 用 `buf lint` + `buf breaking`
 
-## codegen(后续 T-008 接入)
+## codegen
 
-输出到各应用 / 服务的源码目录:
+> 输出在 `packages/proto/dist/` 下,被 `.gitignore`,通过 `package.json` 的 `exports`
+> 暴露给消费方;**消费方 import 前需先 `pnpm proto:gen`**(根命令)。
 
-- TS 客户端类型:`apps/web-c|web-agent|web-admin/src/api/`
-- Java DTO:`services/<svc>/src/main/java/.../proto/`
-- Python pydantic:`services/<svc>/src/proto/`
-- Postman collection 与 Mock server 一并产出
+### 命令(在仓库根)
+
+```bash
+# 安装依赖
+pnpm i
+uv sync --group dev          # 装 datamodel-code-generator(可选)
+
+# 校验 + 生成全部
+pnpm proto:validate          # spectral lint + ajv validate
+pnpm proto:gen               # TS + Python(无 Python 环境时仅生成 TS)
+pnpm --filter @ai-kefu/proto run build   # validate + gen 一步
+
+# breaking 变更检测(需 oasdiff;CI 自动跑)
+pnpm proto:check-breaking
+```
+
+### 输出物
+
+- `dist/ts/visitor.d.ts` 等 — `openapi-typescript` 生成,`paths` / `components` 类型
+- `dist/ts/ws-client.d.ts` / `ws-events.d.ts` — `json-schema-to-typescript`
+- `dist/ts/live-context.d.ts` — JSON Schema → TS
+- `dist/ts/index.{js,d.ts}` — re-export 汇总
+- `dist/python/visitor.py` 等 — `datamodel-code-generator` (pydantic v2)
+
+### 消费
+
+```ts
+// 任意 TS 应用 / 服务
+import type { paths, components } from "@ai-kefu/proto/visitor";
+import type { LiveContext } from "@ai-kefu/proto/live-context";
+import type { WsClientFrame } from "@ai-kefu/proto/ws/client";
+import type { KefuBridge } from "@ai-kefu/proto/jsbridge";  // 直接拿手写 .d.ts
+```
+
+```python
+# Python 服务
+from proto.visitor import Session, Message, FaqTree
+from proto.live_context import LiveContext
+```
+
+### Java DTO(预留,M1 起接入)
+
+打算用 `openapi-generator-cli`(jar / npm 二选一)输出到
+`services/<svc>/src/main/java/com/aikefu/proto/`。当 `services/*` 下 Java 模块开始建立后,
+在 `packages/proto/scripts/` 增 `codegen-java.mjs` 并接到 `gen` 中;暂不阻塞当前阶段。

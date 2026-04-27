@@ -1,0 +1,60 @@
+{
+  "name": "@ai-kefu/proto",
+  "version": "0.0.0",
+  "private": true,
+  "description": "跨服务 / 跨 Agent 共享契约 — OpenAPI / WS Schema / JSBridge / live-context",
+  "type": "module",
+  "main": "./dist/ts/index.js",
+  "types": "./dist/ts/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/ts/index.d.ts",
+      "import": "./dist/ts/index.js"
+    },
+    "./visitor": {
+      "types": "./dist/ts/visitor.d.ts"
+    },
+    "./ws/client": {
+      "types": "./dist/ts/ws-client.d.ts"
+    },
+    "./ws/events": {
+      "types": "./dist/ts/ws-events.d.ts"
+    },
+    "./live-context": {
+      "types": "./dist/ts/live-context.d.ts"
+    },
+    "./jsbridge": {
+      "types": "./jsbridge/kefu.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "openapi",
+    "ws",
+    "live-context",
+    "jsbridge",
+    ".spectral.yaml",
+    "README.md"
+  ],
+  "scripts": {
+    "lint": "spectral lint \"openapi/*.yaml\" --ruleset .spectral.yaml --fail-severity=warn",
+    "validate:ws": "ajv compile -c ajv-formats --strict=false -s \"ws/*.schema.json\"",
+    "validate:lc": "ajv compile -c ajv-formats --strict=false -s \"live-context/*.schema.json\"",
+    "validate": "pnpm run validate:ws && pnpm run validate:lc && pnpm run lint",
+    "gen:ts": "node scripts/codegen-ts.mjs",
+    "gen:py": "node scripts/codegen-py.mjs",
+    "gen": "node scripts/codegen-ts.mjs && node scripts/codegen-py.mjs",
+    "build": "pnpm run validate && pnpm run gen",
+    "test": "node scripts/check-breaking.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@stoplight/spectral-cli": "^6.13.1",
+    "ajv-cli": "^5.0.0",
+    "ajv-formats": "^3.0.1",
+    "json-schema-to-typescript": "^15.0.2",
+    "openapi-typescript": "^7.4.1",
+    "typescript": "^5.6.3"
+  }
+}

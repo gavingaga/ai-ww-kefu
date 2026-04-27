@@ -1,0 +1,56 @@
+name: contract
+
+on:
+  pull_request:
+    paths:
+      - "packages/proto/**"
+      - ".github/workflows/contract.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/proto/**"
+
+jobs:
+  lint-and-gen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # for breaking-change diff vs origin/main
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Python tools
+        run: uv sync --group dev
+
+      - name: Spectral + AJV validate
+        run: pnpm proto:validate
+
+      - name: Generate TS + Python
+        run: pnpm proto:gen
+
+      - name: oasdiff (breaking change)
+        uses: oasdiff/oasdiff-action/breaking@main
+        with:
+          base: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+          revision: HEAD
+          format: text
+          fail-on-diff: ERR
+        continue-on-error: false
+        if: github.event_name == 'pull_request'

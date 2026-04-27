@@ -1,0 +1,18 @@
+# Spectral 规则集 — 校验 OpenAPI 3.x 文档质量。
+extends:
+  - "spectral:oas"
+
+rules:
+  # 项目内规约 — 比基础 spectral:oas 更严
+  oas3-api-servers: warn
+  operation-operationId: warn
+  operation-tag-defined: warn
+  info-contact: off
+  info-license: off
+  contact-properties: off
+  no-$ref-siblings: warn
+  oas3-unused-component: warn
+  operation-success-response: warn
+  operation-tags: warn
+  operation-description: hint
+  path-params: error
