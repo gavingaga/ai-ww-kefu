@@ -1,0 +1,563 @@
+openapi: 3.1.0
+info:
+  title: ai-kefu Visitor API
+  version: 0.1.0
+  description: |
+    C 端访客 REST 契约(配合 WebSocket 长连接使用)。
+    认证:`Authorization: Bearer <token>`,token 由业务方签发或 `/visitors/auth` 换取。
+
+servers:
+  - url: https://api.example.com/v1
+    description: production
+  - url: https://api-staging.example.com/v1
+    description: staging
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+  - name: Sessions
+  - name: Messages
+  - name: Uploads
+  - name: Announcements
+  - name: QuickReplies
+  - name: FAQ
+  - name: PlayDiagnostics
+  - name: Reports
+  - name: Feedback
+
+paths:
+  /visitors/auth:
+    post:
+      tags: [Auth]
+      summary: 访客令牌
+      description: 匿名或有名,可携带 live_context;返回 WS 接入信息。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /sessions/current:
+    get:
+      tags: [Sessions]
+      summary: 获取当前会话(无则创建)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  /sessions/{id}/messages:
+    get:
+      tags: [Messages]
+      summary: 历史消息分页
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - in: query
+          name: before
+          schema: { type: integer, description: "在此 seq 之前(不含)" }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 30, maximum: 100 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, has_more]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Message" }
+                  has_more: { type: boolean }
+    post:
+      tags: [Messages]
+      summary: 发送消息(WS 不可用时降级)
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Message" }
+
+  /sessions/{id}/live-context:
+    post:
+      tags: [Sessions]
+      summary: 更新当前会话的 live_context
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LiveContext" }
+      responses:
+        "204": { description: No Content }
+
+  /sessions/{id}/handoff:
+    post:
+      tags: [Sessions]
+      summary: 主动转人工
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "202":
+          description: 已进入排队
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  position: { type: integer }
+                  eta_seconds: { type: integer }
+
+  /sessions/{id}/close:
+    post:
+      tags: [Sessions]
+      summary: 结束会话
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "204": { description: No Content }
+
+  /sessions/{id}/feedback:
+    post:
+      tags: [Feedback]
+      summary: 满意度反馈
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Feedback"
+      responses:
+        "204": { description: No Content }
+
+  /uploads/sign:
+    post:
+      tags: [Uploads]
+      summary: 取 OSS 直传签名
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, mime, size]
+              properties:
+                filename: { type: string, maxLength: 256 }
+                mime: { type: string }
+                size: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, headers, key, expires_at]
+                properties:
+                  url: { type: string, format: uri }
+                  headers:
+                    type: object
+                    additionalProperties: { type: string }
+                  key: { type: string }
+                  expires_at: { type: string, format: date-time }
+
+  /announcements:
+    get:
+      tags: [Announcements]
+      summary: 公告列表
+      parameters:
+        - in: query
+          name: site
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Announcement" }
+
+  /quick-replies:
+    get:
+      tags: [QuickReplies]
+      summary: 快捷按钮列表
+      parameters:
+        - in: query
+          name: scene
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/QuickReply" }
+
+  /faq/tree:
+    get:
+      tags: [FAQ]
+      summary: 多级常见问题树
+      parameters:
+        - in: query
+          name: scene
+          schema: { type: string, default: welcome }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FaqTree" }
+
+  /faq/node/{id}/children:
+    get:
+      tags: [FAQ]
+      summary: 懒加载某节点的子级
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FaqNode" }
+
+  /faq/hit:
+    post:
+      tags: [FAQ]
+      summary: 上报 FAQ 节点点击事件
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id, node_id]
+              properties:
+                session_id: { type: string }
+                node_id: { type: string }
+      responses:
+        "204": { description: No Content }
+
+  /play/diagnostics:
+    post:
+      tags: [PlayDiagnostics]
+      summary: 上报客户端 60s 播放日志,返回合并诊断
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id, client]
+              properties:
+                session_id: { type: string }
+                client:
+                  $ref: "#/components/schemas/PlayDiagnosticsClient"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlayDiagnosticsResult" }
+
+  /reports/content:
+    post:
+      tags: [Reports]
+      summary: 提交 UGC 举报立案(自动开会话)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_type, target_id, type]
+              properties:
+                target_type:
+                  type: string
+                  enum: [room, vod, anchor, user]
+                target_id: { type: integer }
+                type:
+                  type: string
+                  enum: [porn, abuse, copyright, minor, other]
+                evidence_clip_url: { type: string, format: uri, nullable: true }
+                ts_in_stream: { type: integer, nullable: true }
+                description: { type: string, maxLength: 1000 }
+      responses:
+        "201":
+          description: 已立案
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  incident_id: { type: integer }
+                  session_id: { type: string }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    SessionId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, pattern: "^ses_[A-Za-z0-9_-]+$" }
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: false
+      schema: { type: string, maxLength: 64 }
+
+  schemas:
+    AuthRequest:
+      type: object
+      properties:
+        external_token:
+          type: string
+          description: 业务方签发的用户 token,可空(匿名)
+        live_context:
+          $ref: "#/components/schemas/LiveContext"
+    AuthResponse:
+      type: object
+      required: [token, ws_endpoint, expires_in]
+      properties:
+        token: { type: string }
+        ws_endpoint: { type: string, format: uri }
+        expires_in: { type: integer }
+        user:
+          type: object
+          properties:
+            id: { type: integer }
+            nickname: { type: string }
+            avatar_url: { type: string, format: uri }
+            level: { type: string }
+
+    Session:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string }
+        tenant_id: { type: integer }
+        status:
+          type: string
+          enum: [ai, queueing, in_agent, closed]
+        skill_group_id: { type: integer, nullable: true }
+        agent_id: { type: integer, nullable: true }
+        live_context:
+          $ref: "#/components/schemas/LiveContext"
+        started_at: { type: string, format: date-time }
+
+    Message:
+      type: object
+      required: [id, session_id, seq, role, type, status, created_at]
+      properties:
+        id: { type: string }
+        session_id: { type: string }
+        seq: { type: integer }
+        client_msg_id: { type: string, nullable: true }
+        role:
+          type: string
+          enum: [user, ai, agent, system]
+        type:
+          type: string
+          enum: [text, image, file, card, faq, system]
+        content:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [sent, delivered, read, recalled]
+        created_at: { type: string, format: date-time }
+        ai_meta:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    SendMessageRequest:
+      type: object
+      required: [type, content]
+      properties:
+        client_msg_id: { type: string, maxLength: 64 }
+        type:
+          type: string
+          enum: [text, image, file]
+        content:
+          type: object
+          additionalProperties: true
+
+    Announcement:
+      type: object
+      required: [id, level, content, status]
+      properties:
+        id: { type: integer }
+        level:
+          type: string
+          enum: [info, warning, critical]
+        content: { type: string }
+        link: { type: string, format: uri, nullable: true }
+        starts_at: { type: string, format: date-time, nullable: true }
+        ends_at: { type: string, format: date-time, nullable: true }
+        status:
+          type: string
+          enum: [draft, online, offline]
+
+    QuickReply:
+      type: object
+      required: [id, label, payload, scene]
+      properties:
+        id: { type: integer }
+        scene: { type: string }
+        label: { type: string }
+        payload: { type: string }
+        icon: { type: string, nullable: true }
+        sort_order: { type: integer }
+
+    FaqTree:
+      type: object
+      required: [id, version, nodes]
+      properties:
+        id: { type: string }
+        scene: { type: string }
+        version: { type: integer }
+        nodes:
+          type: array
+          items: { $ref: "#/components/schemas/FaqNode" }
+
+    FaqNode:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        icon: { type: string, nullable: true }
+        sort_order: { type: integer }
+        is_leaf: { type: boolean }
+        children:
+          type: array
+          items: { $ref: "#/components/schemas/FaqNode" }
+        answer:
+          type: object
+          nullable: true
+          properties:
+            content_md: { type: string }
+            attachments:
+              type: array
+              items:
+                type: object
+                properties:
+                  type: { type: string, enum: [image, file, link] }
+                  url: { type: string, format: uri }
+            follow_ups:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string }
+                  title: { type: string }
+            actions:
+              type: array
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: [send_text, handoff, open_link, open_form]
+                  label: { type: string }
+                  payload: { type: string, nullable: true }
+
+    LiveContext:
+      $ref: "../live-context/live-context.schema.json"
+
+    PlayDiagnosticsClient:
+      type: object
+      required: [collected_at, qualities_available, log_ring]
+      properties:
+        collected_at: { type: integer, description: "epoch ms" }
+        qualities_available:
+          type: array
+          items: { type: string }
+        log_ring:
+          type: array
+          items:
+            type: object
+            required: [ts, type]
+            properties:
+              ts: { type: integer }
+              type:
+                type: string
+                enum: [buffer_start, buffer_end, error, quality_switch, first_frame, play, pause]
+              detail:
+                type: object
+                additionalProperties: true
+
+    PlayDiagnosticsResult:
+      type: object
+      required: [verdict, summary]
+      properties:
+        verdict:
+          type: string
+          enum: [local_network, cdn, origin, auth, app_bug, unknown]
+        summary: { type: string, description: "面向用户的精简结论" }
+        suggested_action:
+          type: object
+          nullable: true
+          properties:
+            type:
+              type: string
+              enum: [switch_quality, reenter_room, retry, handoff, none]
+            payload:
+              type: object
+              additionalProperties: true
+        server_qoe:
+          type: object
+          additionalProperties: true
+
+    Feedback:
+      type: object
+      required: [score]
+      properties:
+        score: { type: integer, minimum: 1, maximum: 5 }
+        tags:
+          type: array
+          items: { type: string }
+        comment: { type: string, maxLength: 500 }
