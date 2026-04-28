@@ -1,0 +1,261 @@
+package com.aikefu.routing.service;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import com.aikefu.routing.domain.Agent;
+import com.aikefu.routing.domain.AgentStatus;
+import com.aikefu.routing.domain.Assignment;
+import com.aikefu.routing.domain.QueueEntry;
+import com.aikefu.routing.persistence.AgentRepository;
+import com.aikefu.routing.persistence.QueueRepository;
+
+/** 排队 + 分配。M2 起步内存实现,M3 末接 Redis Sorted Set / Stream。 */
+@Service
+public class RoutingService {
+
+  private static final String DEFAULT_FALLBACK_GROUP = "general";
+
+  private final QueueRepository queue;
+  private final AgentRepository agents;
+  private AssignmentStrategy strategy;
+  private final Duration overflowThreshold;
+
+  public RoutingService(
+      QueueRepository queue,
+      AgentRepository agents,
+      @Value("${aikefu.routing.strategy:vip_first}") String strategyName,
+      @Value("${aikefu.routing.queue-overflow-seconds:180}") int overflowSeconds) {
+    this.queue = queue;
+    this.agents = agents;
+    this.strategy = AssignmentStrategy.of(strategyName);
+    this.overflowThreshold = Duration.ofSeconds(Math.max(overflowSeconds, 30));
+  }
+
+  // ──────────── 入队 ────────────
+
+  public QueueEntry enqueue(
+      String sessionId,
+      long tenantId,
+      String skillGroup,
+      Map<String, Object> packet) {
+    if (sessionId == null || sessionId.isBlank()) {
+      throw new IllegalArgumentException("sessionId required");
+    }
+    String group = normalizeGroup(skillGroup, packet);
+    QueueEntry entry =
+        QueueEntry.builder()
+            .id("q_" + UUID.randomUUID().toString().replace("-", ""))
+            .sessionId(sessionId)
+            .tenantId(tenantId)
+            .skillGroup(group)
+            .packet(packet == null ? new HashMap<>() : packet)
+            .enqueuedAt(Instant.now())
+            .priority(priorityFor(packet))
+            .build();
+    queue.enqueue(entry);
+    return entry;
+  }
+
+  private String normalizeGroup(String group, Map<String, Object> packet) {
+    if (group != null && !group.isBlank()) return group;
+    if (packet != null) {
+      Object hint = packet.get("skill_group_hint");
+      if (hint != null && !hint.toString().isBlank()) return hint.toString();
+    }
+    return DEFAULT_FALLBACK_GROUP;
+  }
+
+  private int priorityFor(Map<String, Object> packet) {
+    if (packet == null) return 100;
+    Object reason = packet.get("reason");
+    if ("minor_compliance".equals(reason)) return 10;
+    if ("report_compliance".equals(reason)) return 30;
+    if ("user_request".equals(reason)) return 50;
+    return 100;
+  }
+
+  // ──────────── 派单 ────────────
+
+  /** 坐席声明可接,返回最优候选条目(尚未 assign,需调 {@link #assign})。 */
+  public Optional<QueueEntry> peekFor(long agentId) {
+    Agent agent = agents.findById(agentId).orElse(null);
+    if (agent == null || !agent.canTakeMore()) return Optional.empty();
+    if (agent.getSkillGroups() == null || agent.getSkillGroups().isEmpty()) return Optional.empty();
+    List<QueueEntry> all = new java.util.ArrayList<>();
+    for (String g : agent.getSkillGroups()) {
+      all.addAll(queue.list(g));
+    }
+    if (all.isEmpty()) return Optional.empty();
+    return strategy.pickForAgent(agent, all);
+  }
+
+  /** 把 entry 派给 agent,失败返回 empty(竞态被抢 / 状态变化等)。 */
+  public synchronized Optional<Assignment> assign(long agentId, String entryId) {
+    Agent agent = agents.findById(agentId).orElse(null);
+    if (agent == null || !agent.canTakeMore()) return Optional.empty();
+    Optional<QueueEntry> opt = queue.remove(entryId);
+    if (opt.isEmpty()) return Optional.empty();
+    QueueEntry entry = opt.get();
+    if (agent.getActiveSessionIds() == null) {
+      agent.setActiveSessionIds(new LinkedHashSet<>());
+    }
+    agent.getActiveSessionIds().add(entry.getSessionId());
+    if (agent.getActiveSessionIds().size() >= agent.getMaxConcurrency()) {
+      agent.setStatus(AgentStatus.BUSY);
+      agent.setStatusChangedAt(Instant.now());
+    }
+    agents.save(agent);
+    return Optional.of(
+        Assignment.builder()
+            .entryId(entry.getId())
+            .sessionId(entry.getSessionId())
+            .agentId(agentId)
+            .skillGroup(entry.getSkillGroup())
+            .assignedAt(Instant.now())
+            .build());
+  }
+
+  /** 坐席结束会话,从 active 中移除;若被压满 BUSY 之前的状态需要恢复。 */
+  public synchronized void release(long agentId, String sessionId) {
+    Agent agent = agents.findById(agentId).orElse(null);
+    if (agent == null) return;
+    if (agent.getActiveSessionIds() == null) {
+      agent.setActiveSessionIds(new LinkedHashSet<>());
+    }
+    agent.getActiveSessionIds().remove(sessionId);
+    if (agent.getStatus() == AgentStatus.BUSY) {
+      agent.setStatus(AgentStatus.IDLE);
+      agent.setStatusChangedAt(Instant.now());
+    }
+    agents.save(agent);
+  }
+
+  // ──────────── 坐席管理 ────────────
+
+  public Agent registerOrUpdate(Agent agent) {
+    Agent existing = agents.findById(agent.getId()).orElse(null);
+    if (existing != null) {
+      existing.setNickname(agent.getNickname());
+      existing.setAvatarUrl(agent.getAvatarUrl());
+      if (agent.getSkillGroups() != null) {
+        existing.setSkillGroups(new LinkedHashSet<>(agent.getSkillGroups()));
+      }
+      if (agent.getMaxConcurrency() > 0) existing.setMaxConcurrency(agent.getMaxConcurrency());
+      return agents.save(existing);
+    }
+    if (agent.getActiveSessionIds() == null) {
+      agent.setActiveSessionIds(new LinkedHashSet<>());
+    }
+    if (agent.getSkillGroups() == null) {
+      agent.setSkillGroups(new LinkedHashSet<>());
+    }
+    if (agent.getStatus() == null) {
+      agent.setStatus(AgentStatus.OFFLINE);
+    }
+    if (agent.getMaxConcurrency() <= 0) {
+      agent.setMaxConcurrency(5);
+    }
+    agent.setStatusChangedAt(Instant.now());
+    return agents.save(agent);
+  }
+
+  public synchronized Agent setStatus(long agentId, AgentStatus status) {
+    Agent agent = agents.findById(agentId).orElseThrow(() -> new AgentNotFound(agentId));
+    agent.setStatus(status);
+    agent.setStatusChangedAt(Instant.now());
+    return agents.save(agent);
+  }
+
+  public List<Agent> listAgents() {
+    return agents.all();
+  }
+
+  public Optional<Agent> findAgent(long id) {
+    return agents.findById(id);
+  }
+
+  // ──────────── 查询 ────────────
+
+  public List<QueueEntry> listQueue(String skillGroup) {
+    if (skillGroup == null || skillGroup.isBlank()) return queue.listAll();
+    return queue.list(skillGroup);
+  }
+
+  /** 估算该 entry 的等待位置(从 1 开始)。 */
+  public int positionOf(String entryId) {
+    QueueEntry e = queue.findById(entryId).orElse(null);
+    if (e == null) return 0;
+    List<QueueEntry> list = queue.list(e.getSkillGroup());
+    int i = 0;
+    for (QueueEntry q : list) {
+      i++;
+      if (q.getId().equals(entryId)) return i;
+    }
+    return 0;
+  }
+
+  public Map<String, Object> stats() {
+    Map<String, Integer> queueByGroup = new HashMap<>();
+    for (QueueEntry e : queue.listAll()) {
+      queueByGroup.merge(e.getSkillGroup(), 1, Integer::sum);
+    }
+    int idle = 0, busy = 0, away = 0, offline = 0;
+    for (Agent a : agents.all()) {
+      switch (a.getStatus()) {
+        case IDLE -> idle++;
+        case BUSY -> busy++;
+        case AWAY -> away++;
+        default -> offline++;
+      }
+    }
+    return Map.of(
+        "queue", queueByGroup,
+        "agents",
+            Map.of("idle", idle, "busy", busy, "away", away, "offline", offline,
+                "total", agents.all().size()),
+        "strategy", strategy.name(),
+        "overflow_threshold_seconds", (int) overflowThreshold.getSeconds());
+  }
+
+  // ──────────── 溢出 ────────────
+
+  /**
+   * 把超时未派的条目移到上级 group。groupOverflow 由 web 配置传入(group → fallback group)。
+   *
+   * @return 实际溢出的 entry id 集合
+   */
+  public synchronized java.util.Set<String> overflowOnce(Map<String, String> groupOverflow) {
+    java.util.Set<String> moved = new HashSet<>();
+    if (groupOverflow == null || groupOverflow.isEmpty()) return moved;
+    for (QueueEntry entry : queue.listAll()) {
+      if (!AssignmentStrategy.shouldOverflow(entry, overflowThreshold)) continue;
+      String to = groupOverflow.getOrDefault(entry.getSkillGroup(), "");
+      if (to == null || to.isBlank() || to.equals(entry.getSkillGroup())) continue;
+      queue.move(entry.getId(), to);
+      moved.add(entry.getId());
+    }
+    return moved;
+  }
+
+  // 为单测注入策略
+  void overrideStrategy(AssignmentStrategy s) {
+    this.strategy = s;
+  }
+
+  public static class AgentNotFound extends RuntimeException {
+    public AgentNotFound(long id) {
+      super("agent not found: " + id);
+    }
+  }
+}

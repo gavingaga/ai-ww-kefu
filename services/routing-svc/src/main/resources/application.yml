@@ -1,0 +1,41 @@
+server:
+  port: ${ROUTING_SVC_PORT:8083}
+  shutdown: graceful
+
+spring:
+  application:
+    name: routing-svc
+  jackson:
+    default-property-inclusion: non_null
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+aikefu:
+  routing:
+    strategy: vip_first
+    queue-overflow-seconds: 180
+    skill-groups:
+      general:
+        priority: 100
+        overflow-to: ""
+      play_tech:
+        priority: 90
+        overflow-to: general
+      content_copyright:
+        priority: 80
+        overflow-to: general
+      anchor_community:
+        priority: 80
+        overflow-to: general
+      membership_payment:
+        priority: 90
+        overflow-to: general
+      minor_compliance:
+        priority: 10  # 优先级最高(数字越小越先)
+        overflow-to: ""
