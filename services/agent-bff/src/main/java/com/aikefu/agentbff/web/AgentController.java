@@ -21,9 +21,19 @@ import com.aikefu.agentbff.service.AgentService;
 public class AgentController {
 
   private final AgentService svc;
+  private final com.aikefu.agentbff.clients.ToolClient toolClient;
 
-  public AgentController(AgentService svc) {
+  public AgentController(AgentService svc, com.aikefu.agentbff.clients.ToolClient toolClient) {
     this.svc = svc;
+    this.toolClient = toolClient;
+  }
+
+  /** 坐席侧调工具(get_membership / get_play_diagnostics 等):透传 tool-svc。 */
+  @org.springframework.web.bind.annotation.PostMapping("/tools/{name}/invoke")
+  public Map<String, Object> invokeTool(
+      @org.springframework.web.bind.annotation.PathVariable("name") String name,
+      @org.springframework.web.bind.annotation.RequestBody Map<String, Object> body) {
+    return toolClient.invoke(name, body);
   }
 
   @GetMapping("/healthz")

@@ -24,7 +24,7 @@
 - [x] **T-501** report-svc(POST /v1/events + 6 聚合 kpi/csat/tools/agents/handoff/timeseries;Auditor 自动镜像)
 - [x] **T-502** web-admin 报表看板(KPI / CSAT 分布 / 转人工原因 / 工具 TopN / 坐席排行,5s 刷新)
 - [ ] **T-310** web-agent 实时大屏故障 TopN / 赛事预警
-- [ ] **T-307** web-agent ContextPanel 完整 8 Tab
+- [x] **T-307** web-agent ContextPanel 完整 8 Tab(概览/用户/订阅/直播间/诊断/历史/合规/备注),走 agent-bff /v1/agent/tools/* 透传 tool-svc
 - [ ] **T-308** web-agent AI 建议回复独立面板
 - [ ] **T-311** 高风险操作二次审批(退款 / 未成年 / 封禁)
 

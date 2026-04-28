@@ -72,6 +72,16 @@ public class RestClients {
         .build();
   }
 
+  @Bean(name = "toolRestClient")
+  public RestClient toolRestClient(
+      @Value("${aikefu.tool-svc.url:http://localhost:8087}") String baseUrl,
+      @Value("${aikefu.tool-svc.timeout-ms:5000}") int timeoutMs) {
+    return RestClient.builder()
+        .baseUrl(baseUrl)
+        .requestFactory(factory(timeoutMs))
+        .build();
+  }
+
   private static SimpleClientHttpRequestFactory factory(int timeoutMs) {
     SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
     f.setConnectTimeout(Duration.ofMillis(timeoutMs));

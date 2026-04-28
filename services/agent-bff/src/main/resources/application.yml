@@ -33,6 +33,9 @@ aikefu:
     url: ${REPORT_SVC_URL:http://localhost:8089}
     timeout-ms: 2000
     enabled: ${REPORT_ENABLED:true}
+  tool-svc:
+    url: ${TOOL_SVC_URL:http://localhost:8087}
+    timeout-ms: 5000
   gateway-ws:
     # 留空则关闭"坐席消息直推 C 端"功能;C 端仍能通过会话历史拉到回复
     url: ${GATEWAY_WS_URL:}
