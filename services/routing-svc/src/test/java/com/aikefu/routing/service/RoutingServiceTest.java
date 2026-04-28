@@ -153,6 +153,44 @@ class RoutingServiceTest {
   }
 
   @Test
+  void dashboardReturnsKpiAndRows() {
+    svc.registerOrUpdate(
+        Agent.builder()
+            .id(1)
+            .nickname("alice")
+            .skillGroups(new java.util.LinkedHashSet<>(Set.of("general")))
+            .status(AgentStatus.IDLE)
+            .maxConcurrency(3)
+            .build());
+    svc.registerOrUpdate(
+        Agent.builder()
+            .id(2)
+            .nickname("bob")
+            .skillGroups(new java.util.LinkedHashSet<>(Set.of("general")))
+            .status(AgentStatus.OFFLINE)
+            .maxConcurrency(3)
+            .build());
+    svc.enqueue("s1", 1, "general", packet("user_request", "VIP3"));
+    svc.enqueue("s2", 1, "play_tech", packet("user_request", "free"));
+    svc.enqueue("s3", 1, "minor_compliance", packet("minor_compliance", "free"));
+
+    var dash = svc.dashboard();
+    var kpi = (java.util.Map<?, ?>) dash.get("kpi");
+    assertThat(kpi.get("queue_total")).isEqualTo(3);
+    assertThat(kpi.get("vip_waiting")).isEqualTo(1);
+    assertThat(kpi.get("minor_waiting")).isEqualTo(1);
+    assertThat(kpi.get("agents_idle")).isEqualTo(1);
+    assertThat(kpi.get("agents_offline")).isEqualTo(1);
+    // 仅 IDLE 计入 capacity
+    assertThat(kpi.get("capacity")).isEqualTo(3);
+    var queueByGroup = (java.util.Map<?, ?>) dash.get("queue_by_group");
+    assertThat(queueByGroup.get("general")).isEqualTo(1);
+    assertThat(queueByGroup.get("play_tech")).isEqualTo(1);
+    assertThat(((java.util.List<?>) dash.get("queue"))).hasSize(3);
+    assertThat(((java.util.List<?>) dash.get("agents"))).hasSize(2);
+  }
+
+  @Test
   void overflowMovesEntryWhenAged() throws Exception {
     var s = new RoutingService(queue, agents, "fifo", 30);
     var e = s.enqueue("s1", 1, "play_tech", packet("user_request", "free"));

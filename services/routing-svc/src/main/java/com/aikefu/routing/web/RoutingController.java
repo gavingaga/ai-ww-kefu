@@ -66,6 +66,12 @@ public class RoutingController {
     return svc.stats();
   }
 
+  /** 实时大屏聚合(主管视图直接消费)。 */
+  @GetMapping("/dashboard")
+  public Map<String, Object> dashboard() {
+    return svc.dashboard();
+  }
+
   // ──────────── Agents ────────────
 
   @PostMapping("/agents")

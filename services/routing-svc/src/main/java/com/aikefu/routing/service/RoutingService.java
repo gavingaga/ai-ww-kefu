@@ -316,6 +316,112 @@ public class RoutingService {
         "overflow_threshold_seconds", (int) overflowThreshold.getSeconds());
   }
 
+  /**
+   * 实时大屏聚合数据 — 比 {@link #stats} 更细粒度,供主管视图直接消费。
+   *
+   * 包含:KPI(总队列 / VIP / 老化 / 未成年 / 最大等待 / 坐席状态分布 / load_ratio)+
+   * 队列分布(by group)+ 坐席列表 + 全量队列条目(带等待秒数)。
+   */
+  public Map<String, Object> dashboard() {
+    java.util.List<QueueEntry> all = queue.listAll();
+    Map<String, Integer> queueByGroup = new HashMap<>();
+    int vipCount = 0;
+    int agedCount = 0;
+    int minorCount = 0;
+    Instant now = Instant.now();
+    long overflowSec = overflowThreshold.getSeconds();
+    long maxWaitSec = 0;
+    for (QueueEntry e : all) {
+      queueByGroup.merge(e.getSkillGroup(), 1, Integer::sum);
+      if (e.isVip()) vipCount++;
+      if ("minor_compliance".equals(String.valueOf(e.reason()))) minorCount++;
+      if (e.getEnqueuedAt() != null) {
+        long waited = java.time.Duration.between(e.getEnqueuedAt(), now).getSeconds();
+        if (waited >= overflowSec) agedCount++;
+        if (waited > maxWaitSec) maxWaitSec = waited;
+      }
+    }
+    int idle = 0, busy = 0, away = 0, offline = 0, supervisors = 0;
+    int totalLoad = 0, totalCap = 0;
+    java.util.List<Map<String, Object>> agentRows = new java.util.ArrayList<>();
+    for (Agent a : agents.all()) {
+      switch (a.getStatus()) {
+        case IDLE -> idle++;
+        case BUSY -> busy++;
+        case AWAY -> away++;
+        default -> offline++;
+      }
+      if (a.getRole() == com.aikefu.routing.domain.AgentRole.SUPERVISOR) supervisors++;
+      int load = a.load();
+      totalLoad += load;
+      if (a.getStatus() != com.aikefu.routing.domain.AgentStatus.OFFLINE) {
+        totalCap += a.getMaxConcurrency();
+      }
+      Map<String, Object> row = new java.util.LinkedHashMap<>();
+      row.put("id", a.getId());
+      row.put("nickname", a.getNickname() == null ? ("#" + a.getId()) : a.getNickname());
+      row.put("status", a.getStatus().name());
+      row.put("role", a.getRole() == null ? "AGENT" : a.getRole().name());
+      row.put(
+          "skill_groups", a.getSkillGroups() == null ? List.of() : a.getSkillGroups());
+      row.put("load", load);
+      row.put("max_concurrency", a.getMaxConcurrency());
+      row.put(
+          "active_session_ids",
+          a.getActiveSessionIds() == null ? List.of() : a.getActiveSessionIds());
+      row.put(
+          "observing_session_ids",
+          a.getObservingSessionIds() == null ? List.of() : a.getObservingSessionIds());
+      agentRows.add(row);
+    }
+
+    java.util.List<Map<String, Object>> queueRows = new java.util.ArrayList<>();
+    for (QueueEntry e : all) {
+      Map<String, Object> p = e.getPacket() == null ? Map.of() : e.getPacket();
+      Map<String, Object> row = new java.util.LinkedHashMap<>();
+      row.put("id", e.getId());
+      row.put("session_id", e.getSessionId());
+      row.put("skill_group", e.getSkillGroup());
+      row.put("priority", e.getPriority());
+      row.put("vip", e.isVip());
+      row.put("reason", String.valueOf(p.get("reason")));
+      row.put("summary", String.valueOf(p.getOrDefault("summary", "")));
+      row.put("enqueued_at", String.valueOf(e.getEnqueuedAt()));
+      row.put(
+          "waited_seconds",
+          e.getEnqueuedAt() == null
+              ? 0
+              : java.time.Duration.between(e.getEnqueuedAt(), now).getSeconds());
+      row.put("overflowed", e.isOverflowed());
+      queueRows.add(row);
+    }
+
+    Map<String, Object> kpi = new java.util.LinkedHashMap<>();
+    kpi.put("queue_total", all.size());
+    kpi.put("vip_waiting", vipCount);
+    kpi.put("aged_waiting", agedCount);
+    kpi.put("minor_waiting", minorCount);
+    kpi.put("max_wait_seconds", maxWaitSec);
+    kpi.put("agents_idle", idle);
+    kpi.put("agents_busy", busy);
+    kpi.put("agents_away", away);
+    kpi.put("agents_offline", offline);
+    kpi.put("supervisors", supervisors);
+    kpi.put("load", totalLoad);
+    kpi.put("capacity", totalCap);
+    kpi.put(
+        "load_ratio",
+        totalCap == 0 ? 0.0 : Math.round(((double) totalLoad / totalCap) * 1000.0) / 1000.0);
+    kpi.put("strategy", strategy.name());
+
+    Map<String, Object> out = new java.util.LinkedHashMap<>();
+    out.put("kpi", kpi);
+    out.put("queue_by_group", queueByGroup);
+    out.put("agents", agentRows);
+    out.put("queue", queueRows);
+    return out;
+  }
+
   // ──────────── 溢出 ────────────
 
   /**
