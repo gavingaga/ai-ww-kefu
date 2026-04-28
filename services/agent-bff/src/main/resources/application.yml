@@ -11,6 +11,8 @@ spring:
     timeout-per-shutdown-phase: 15s
 
 aikefu:
+  # /v1/agent/_internal/* 端点共享 token;空表示放开(仅生产前内部网络默认放开亦可)
+  internal-token: ${AGENT_BFF_INTERNAL_TOKEN:}
   routing-svc:
     url: ${ROUTING_SVC_URL:http://localhost:8083}
     timeout-ms: 2000

@@ -47,13 +47,14 @@ public class AgentService {
   }
 
   /**
-   * 把入库后的会话消息以 SSE 事件 {@code session-message} 推送给:发送方 + 所有观察该会话的主管。
+   * 把入库后的会话消息以 SSE 事件 {@code session-message} 推送给:
+   * 发送方 + 当前承接坐席 + 所有观察该会话的主管。
    *
-   * <p>消除 web-agent 当前会话的 4s 轮询,让坐席侧实时看到 reply / whisper 等动作。
+   * <p>消除 web-agent 当前会话的 4s 轮询,让坐席侧实时看到 reply / whisper / 用户消息。
    *
    * @param sessionId 目标会话
    * @param saved session-svc 入库后的 message
-   * @param senderAgentId 发送方坐席 ID(可空,例如系统消息);非空时也会单独推一份给自己
+   * @param senderAgentId 发送方坐席 ID(可空,例如系统消息 / C 端消息)
    */
   private void publishSessionMessage(String sessionId, Map<String, Object> saved, Long senderAgentId) {
     if (sessionId == null || saved == null || saved.isEmpty()) return;
@@ -67,13 +68,23 @@ public class AgentService {
       targets.add(senderAgentId);
     }
     try {
-      targets.addAll(routing.observersOf(sessionId));
+      java.util.Map<String, java.util.List<Long>> agents = routing.agentsForSession(sessionId);
+      targets.addAll(agents.getOrDefault("active", java.util.List.of()));
+      targets.addAll(agents.getOrDefault("observers", java.util.List.of()));
     } catch (Exception ignored) {
       // 路由不可达不阻塞 push
     }
     for (Long id : targets) {
       bus.publish(id, "session-message", payload);
     }
+  }
+
+  /**
+   * 外部服务(gateway-ws / ai-hub)反向通知 — 不带 senderAgentId,事件仅发给当前承接的坐席与
+   * 观察该会话的主管。例如 C 端发出的消息由 gateway-ws 在 SessionRouter 落库后调本入口。
+   */
+  public void notifyExternalSessionMessage(String sessionId, Map<String, Object> message) {
+    publishSessionMessage(sessionId, message, null);
   }
 
   /**

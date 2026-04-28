@@ -125,6 +125,44 @@ public class RoutingClient {
         .body(new ParameterizedTypeReference<>() {});
   }
 
+  /** 反查会话相关坐席:active(承接的)+ observers(观察的主管)。 */
+  public java.util.Map<String, java.util.List<Long>> agentsForSession(String sessionId) {
+    java.util.Map<String, java.util.List<Long>> out = new java.util.LinkedHashMap<>();
+    out.put("active", java.util.List.of());
+    out.put("observers", java.util.List.of());
+    try {
+      Map<String, Object> body =
+          client
+              .get()
+              .uri("/v1/sessions/{sid}/agents", sessionId)
+              .retrieve()
+              .body(new ParameterizedTypeReference<>() {});
+      if (body != null) {
+        out.put("active", asLongList(body.get("active")));
+        out.put("observers", asLongList(body.get("observers")));
+      }
+    } catch (Exception ignored) {
+      // 推送主链路不应被路由失败阻塞
+    }
+    return out;
+  }
+
+  private static java.util.List<Long> asLongList(Object v) {
+    if (!(v instanceof java.util.Collection<?> c)) return java.util.List.of();
+    java.util.List<Long> out = new java.util.ArrayList<>();
+    for (Object o : c) {
+      if (o instanceof Number n) out.add(n.longValue());
+      else if (o != null) {
+        try {
+          out.add(Long.parseLong(String.valueOf(o)));
+        } catch (NumberFormatException ignored) {
+          // skip
+        }
+      }
+    }
+    return out;
+  }
+
   /** 列出正在观察某会话的主管 ID 集合;失败 / 网络异常时回空。 */
   public java.util.List<Long> observersOf(String sessionId) {
     try {
