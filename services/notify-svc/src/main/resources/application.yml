@@ -1,0 +1,24 @@
+server:
+  port: ${NOTIFY_SVC_PORT:8082}
+  shutdown: graceful
+
+spring:
+  application:
+    name: notify-svc
+  jackson:
+    default-property-inclusion: non_null
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+aikefu:
+  faq:
+    seed-resource: seeds/faq-default.json
+    similarity-threshold: 0.86
+    # token-overlap 兜底用(无嵌入服务时)
+    overlap-threshold: 0.55

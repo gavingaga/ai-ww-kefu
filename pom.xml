@@ -34,7 +34,8 @@
 
     <modules>
         <module>services/session-svc</module>
-        <!-- 后续:routing-svc / agent-bff / notify-svc / upload-svc / livectx-svc / tool-svc / audit-svc / report-svc -->
+        <module>services/notify-svc</module>
+        <!-- 后续:routing-svc / agent-bff / upload-svc / livectx-svc / tool-svc / audit-svc / report-svc -->
     </modules>
 
     <dependencyManagement>

@@ -1,0 +1,161 @@
+[
+  {
+    "id": "faq_welcome",
+    "scene": "welcome",
+    "version": 1,
+    "nodes": [
+      {
+        "id": "play",
+        "title": "直播 / 点播 播放问题",
+        "icon": "📡",
+        "sortOrder": 1,
+        "children": [
+          {
+            "id": "play.buffer",
+            "title": "我看视频卡顿怎么办?",
+            "icon": "🐢",
+            "isLeaf": true,
+            "synonyms": ["卡顿", "好卡", "画面卡", "缓冲", "一直在转圈", "视频不流畅"],
+            "answer": {
+              "contentMd": "建议依次尝试:\n1. 切换到「流畅 / 480p」清晰度\n2. 切换 Wi-Fi / 4G 网络\n3. 退出直播间重新进入\n如仍卡顿,可点击下方「转人工」让技术支持介入。",
+              "actions": [
+                { "type": "send_text", "label": "切到 480p", "payload": "请帮我把清晰度切到 480p" },
+                { "type": "handoff", "label": "转人工" }
+              ],
+              "followUps": [
+                { "id": "play.black", "title": "黑屏 / 无画面" },
+                { "id": "play.no_sound", "title": "有画面没声音" }
+              ]
+            }
+          },
+          {
+            "id": "play.black",
+            "title": "黑屏 / 无画面怎么办?",
+            "icon": "⬛",
+            "isLeaf": true,
+            "synonyms": ["黑屏", "看不到画面", "进不去直播间"],
+            "answer": {
+              "contentMd": "请检查:\n1. 直播是否已开始 / 节目是否在直播时段\n2. 是否需要登录会员观看\n3. 退出 App 杀进程后再次进入\n仍无法解决可发起一键播放诊断。",
+              "actions": [
+                { "type": "send_text", "label": "一键诊断", "payload": "我看视频黑屏,请帮我诊断一下" },
+                { "type": "handoff", "label": "转人工" }
+              ]
+            }
+          },
+          {
+            "id": "play.no_sound",
+            "title": "有画面没声音怎么办?",
+            "icon": "🔇",
+            "isLeaf": true,
+            "synonyms": ["没声音", "静音", "听不到声音", "声音消失"],
+            "answer": {
+              "contentMd": "请检查:\n1. 系统媒体音量、App 音量、是否点了静音\n2. 蓝牙耳机连接是否正常\n3. 切换清晰度刷新一次音频流\n仍无法解决可转人工。"
+            }
+          },
+          {
+            "id": "play.quality",
+            "title": "如何切换清晰度?",
+            "icon": "🎚",
+            "isLeaf": true,
+            "synonyms": ["清晰度", "分辨率", "1080p", "切换画质"],
+            "answer": {
+              "contentMd": "在播放器右下角点「清晰度」按钮,可切换 自动 / 流畅(480p) / 高清(720p) / 超清(1080p) / 蓝光(4K)。会员专享更高清晰度。"
+            }
+          }
+        ]
+      },
+      {
+        "id": "membership",
+        "title": "会员 / 订阅 / 退款",
+        "icon": "💳",
+        "sortOrder": 2,
+        "children": [
+          {
+            "id": "ms.cancel",
+            "title": "怎么取消连续包月 / 自动续费?",
+            "icon": "🛑",
+            "isLeaf": true,
+            "synonyms": ["取消订阅", "关闭自动续费", "退订", "停止包月"],
+            "answer": {
+              "contentMd": "iOS:打开「设置 → Apple ID → 订阅」找到本应用关闭自动续费;\nAndroid:Google Play / 应用商店 → 订阅 → 关闭;\n仍有疑问可转人工核实订单状态。",
+              "actions": [
+                { "type": "open_link", "label": "打开订阅管理", "payload": "https://example.com/help/subscription" },
+                { "type": "handoff", "label": "转人工" }
+              ]
+            }
+          },
+          {
+            "id": "ms.refund",
+            "title": "我要申请退款",
+            "icon": "💰",
+            "isLeaf": true,
+            "synonyms": ["退款", "退会员", "退钱", "退会费"],
+            "answer": {
+              "contentMd": "退款将根据您的购买渠道与时间走人工审核。请点击下方按钮,坐席会核实订单与原因。\n如涉及未成年人误操作充值,请提前准备监护人证明。",
+              "actions": [
+                { "type": "handoff", "label": "转人工申请退款" }
+              ]
+            }
+          },
+          {
+            "id": "ms.minor",
+            "title": "未成年人误充值 / 误打赏",
+            "icon": "👶",
+            "isLeaf": true,
+            "synonyms": ["小孩偷充值", "未成年", "孩子充值", "未成年人打赏"],
+            "answer": {
+              "contentMd": "依《未成年人保护法》,我们设有专项绿色通道。请直接转人工合规专席,准备监护人身份证明、亲子关系证明、支付记录截图,7 个工作日内书面答复。",
+              "actions": [
+                { "type": "handoff", "label": "转未成年人合规专席" }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "social",
+        "title": "弹幕 / 礼物 / 主播",
+        "icon": "🎁",
+        "sortOrder": 3,
+        "children": [
+          {
+            "id": "soc.danmu",
+            "title": "弹幕发不出来怎么办?",
+            "icon": "💬",
+            "isLeaf": true,
+            "synonyms": ["弹幕", "发弹幕失败", "评论不出去"],
+            "answer": {
+              "contentMd": "可能原因:\n1. 当前直播间被房管设了发言冷却 / 等级门槛\n2. 你的账号被临时禁言(可在「我 → 通知」查看)\n3. 触发关键词风控(请避免敏感词)"
+            }
+          },
+          {
+            "id": "soc.gift",
+            "title": "礼物 / 虚拟币没到账",
+            "icon": "🪙",
+            "isLeaf": true,
+            "synonyms": ["礼物", "充值没到账", "虚拟币", "金币"],
+            "answer": {
+              "contentMd": "请稍等 1~5 分钟通常会自动到账;若仍未到账,坐席可帮你查询订单流水。",
+              "actions": [
+                { "type": "handoff", "label": "联系人工" }
+              ]
+            }
+          },
+          {
+            "id": "soc.report",
+            "title": "如何举报主播 / 直播内容",
+            "icon": "🚨",
+            "isLeaf": true,
+            "synonyms": ["举报", "投诉主播", "违规内容", "色情", "暴力"],
+            "answer": {
+              "contentMd": "在直播间右上角点「⋮」选择「举报」,选择类型并提供时间点截图。涉黄 / 涉政 / 涉暴会优先处置;您也可以直接转人工合规组。",
+              "actions": [
+                { "type": "handoff", "label": "转人工合规组" }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
