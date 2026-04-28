@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 
 import { Avatar, Bubble } from "@ai-kefu/ui-glass";
 
-import type { Message } from "../mocks/data.js";
+import type { Message, ToolCallContent } from "../mocks/data.js";
 import { FaqAnswerCard } from "./FaqAnswerCard.js";
 import { RagCitation } from "./RagCitation.js";
 import { ToolCallBadge } from "./ToolCallBadge.js";
@@ -12,9 +12,23 @@ export interface MessageListProps {
   onSend: (text: string) => void;
   onHandoff: () => void;
   onOpenLink: (url: string) => void;
+  /** dry_run 工具卡片用户点「确认执行」 */
+  onToolConfirm?: (tool: ToolCallContent) => void;
+  /** dry_run 工具卡片用户点「取消」 */
+  onToolCancel?: (tool: ToolCallContent) => void;
+  /** 工具失败用户点「重试」 */
+  onToolRetry?: (tool: ToolCallContent) => void;
 }
 
-export function MessageList({ items, onSend, onHandoff, onOpenLink }: MessageListProps) {
+export function MessageList({
+  items,
+  onSend,
+  onHandoff,
+  onOpenLink,
+  onToolConfirm,
+  onToolCancel,
+  onToolRetry,
+}: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -40,6 +54,9 @@ export function MessageList({ items, onSend, onHandoff, onOpenLink }: MessageLis
           onSend={onSend}
           onHandoff={onHandoff}
           onOpenLink={onOpenLink}
+          onToolConfirm={onToolConfirm}
+          onToolCancel={onToolCancel}
+          onToolRetry={onToolRetry}
         />
       ))}
       <div ref={bottomRef} />
@@ -52,11 +69,17 @@ function Row({
   onSend,
   onHandoff,
   onOpenLink,
+  onToolConfirm,
+  onToolCancel,
+  onToolRetry,
 }: {
   m: Message;
   onSend: (t: string) => void;
   onHandoff: () => void;
   onOpenLink: (u: string) => void;
+  onToolConfirm?: (tool: ToolCallContent) => void;
+  onToolCancel?: (tool: ToolCallContent) => void;
+  onToolRetry?: (tool: ToolCallContent) => void;
 }) {
   if (m.kind === "faq") {
     return (
@@ -69,7 +92,14 @@ function Row({
     );
   }
   if (m.kind === "tool") {
-    return <ToolCallBadge tool={m.tool} />;
+    return (
+      <ToolCallBadge
+        tool={m.tool}
+        onConfirm={onToolConfirm}
+        onCancel={onToolCancel}
+        onRetry={onToolRetry}
+      />
+    );
   }
   if (m.kind === "rag") {
     return <RagCitation rag={m.rag} />;

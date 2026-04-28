@@ -13,6 +13,7 @@ import {
   quickReplies,
   type FaqAnswer,
   type Message,
+  type ToolCallContent,
 } from "./mocks/data.js";
 import { createWs } from "./ws/createClient.js";
 
@@ -102,22 +103,32 @@ export function App() {
       // 3) 工具调用结果(AI 触发,UI 展示一个胶囊)
       if (f.type === "event.tool_call") {
         const p = f.payload ?? {};
-        setMessages((prev) => [
-          ...prev,
-          {
-            kind: "tool",
-            id: `tool-${f.seq ?? Date.now()}`,
-            role: "ai",
-            ts: f.ts ?? Date.now(),
-            tool: {
-              name: String(p.name ?? ""),
-              args: (p.args as Record<string, unknown>) ?? undefined,
-              ok: Boolean(p.ok),
-              result: p.result,
-              error: typeof p.error === "string" ? p.error : undefined,
+        setMessages((prev) => {
+          // 把仍在 thinking 的占位气泡的文案换成"已查询 N 个工具,正在整理回复"
+          // 让用户感知 AI 正在干活,不至于盯着空泡 5+ 秒
+          const toolCount = prev.filter((x) => x.kind === "tool").length + 1;
+          const updated = prev.map((m) =>
+            m.kind === "text" && m.thinking
+              ? { ...m, text: `已查询 ${toolCount} 个工具,正在整理回复…` }
+              : m,
+          );
+          return [
+            ...updated,
+            {
+              kind: "tool",
+              id: `tool-${f.seq ?? Date.now()}`,
+              role: "ai",
+              ts: f.ts ?? Date.now(),
+              tool: {
+                name: String(p.name ?? ""),
+                args: (p.args as Record<string, unknown>) ?? undefined,
+                ok: Boolean(p.ok),
+                result: p.result,
+                error: typeof p.error === "string" ? p.error : undefined,
+              },
             },
-          },
-        ]);
+          ];
+        });
         return;
       }
       // 3.1) RAG 引用(AI 答复时附带的知识库引用)
@@ -283,6 +294,34 @@ export function App() {
     ]);
   }, []);
 
+  const onToolConfirm = useCallback(
+    (tool: ToolCallContent) => {
+      const argsBrief = tool.args
+        ? Object.entries(tool.args)
+            .slice(0, 3)
+            .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+            .join(", ")
+        : "";
+      const human = `确认执行 ${tool.name}${argsBrief ? "(" + argsBrief + ")" : ""}`;
+      sendUser(human);
+    },
+    [sendUser],
+  );
+
+  const onToolCancel = useCallback(
+    (tool: ToolCallContent) => {
+      sendUser(`不执行 ${tool.name},取消该操作`);
+    },
+    [sendUser],
+  );
+
+  const onToolRetry = useCallback(
+    (tool: ToolCallContent) => {
+      sendUser(`刚才 ${tool.name} 失败了,请重试`);
+    },
+    [sendUser],
+  );
+
   const openLink = useCallback((url: string) => {
     if (!/^https?:\/\//i.test(url)) return;
     // WebView 优先经 JSBridge
@@ -342,6 +381,9 @@ export function App() {
           onSend={sendUser}
           onHandoff={handoffToAgent}
           onOpenLink={openLink}
+          onToolConfirm={onToolConfirm}
+          onToolCancel={onToolCancel}
+          onToolRetry={onToolRetry}
         />
 
         <QuickReplies items={quickReplies} onSend={sendUser} />
