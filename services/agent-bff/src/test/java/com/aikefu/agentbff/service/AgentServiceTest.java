@@ -125,4 +125,34 @@ class AgentServiceTest {
     var res = svc.steal(99L, 1L, "ses_a");
     assertThat(res).containsEntry("ok", true);
   }
+
+  @Test
+  void acceptPublishesInboxChangedEvent() {
+    var routing = mock(RoutingClient.class);
+    var session = mock(SessionClient.class);
+    var bus = mock(com.aikefu.agentbff.push.AgentEventBus.class);
+    when(routing.assign(1L, "q1")).thenReturn(Map.of("entryId", "q1"));
+    var svc = new AgentService(routing, session, bus);
+    svc.accept(1L, "q1");
+    org.mockito.Mockito.verify(bus)
+        .publish(org.mockito.ArgumentMatchers.eq(1L),
+            org.mockito.ArgumentMatchers.eq("inbox-changed"),
+            org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void transferPublishesToBothAgents() {
+    var routing = mock(RoutingClient.class);
+    var session = mock(SessionClient.class);
+    var bus = mock(com.aikefu.agentbff.push.AgentEventBus.class);
+    when(routing.transfer(1L, 99L, "ses_a")).thenReturn(Map.of("ok", true));
+    var svc = new AgentService(routing, session, bus);
+    svc.transfer(1L, 99L, "ses_a");
+    org.mockito.Mockito.verify(bus).publish(org.mockito.ArgumentMatchers.eq(1L),
+        org.mockito.ArgumentMatchers.eq("inbox-changed"),
+        org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.verify(bus).publish(org.mockito.ArgumentMatchers.eq(99L),
+        org.mockito.ArgumentMatchers.eq("inbox-changed"),
+        org.mockito.ArgumentMatchers.any());
+  }
 }

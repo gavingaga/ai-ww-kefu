@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import com.aikefu.agentbff.clients.RoutingClient;
 import com.aikefu.agentbff.clients.SessionClient;
+import com.aikefu.agentbff.push.AgentEventBus;
 
 /** 座席视角的聚合操作。所有错误都向上传播,由 controller 转译为 HTTP。 */
 @Service
@@ -15,10 +16,23 @@ public class AgentService {
 
   private final RoutingClient routing;
   private final SessionClient session;
+  private final AgentEventBus bus;
 
-  public AgentService(RoutingClient routing, SessionClient session) {
+  public AgentService(RoutingClient routing, SessionClient session, AgentEventBus bus) {
     this.routing = routing;
     this.session = session;
+    this.bus = bus;
+  }
+
+  /** 单元测试用 — 不强依赖 SSE 总线。 */
+  public AgentService(RoutingClient routing, SessionClient session) {
+    this(routing, session, new AgentEventBus());
+  }
+
+  private void inboxChanged(long... agentIds) {
+    for (long id : agentIds) {
+      bus.publish(id, "inbox-changed", Map.of("agent_id", id, "ts", System.currentTimeMillis()));
+    }
   }
 
   /** 收件箱:待接队列(按坐席技能组过滤)+ 当前进行中会话快照。 */
@@ -67,7 +81,9 @@ public class AgentService {
    * 真实接入后这里需要再调 session.attachAgent。当前先打 routing.assign 完成派单。
    */
   public Map<String, Object> accept(long agentId, String entryId) {
-    return routing.assign(agentId, entryId);
+    Map<String, Object> r = routing.assign(agentId, entryId);
+    inboxChanged(agentId);
+    return r;
   }
 
   /** 结束:释放 routing 占用 + 关闭会话状态。 */
@@ -78,12 +94,14 @@ public class AgentService {
     } catch (Exception ex) {
       // session 可能已 closed,这里幂等忽略
     }
+    inboxChanged(agentId);
     return Map.of("ok", true, "session_id", sessionId);
   }
 
   /** 转回 AI 托管(暂同 close + 由 ai-hub 重启会话);M3 末细化。 */
   public Map<String, Object> transferToAi(long agentId, String sessionId) {
     routing.release(agentId, sessionId);
+    inboxChanged(agentId);
     return Map.of("ok", true, "session_id", sessionId, "transferred", "ai");
   }
 
@@ -94,7 +112,9 @@ public class AgentService {
 
   /** 上下行同步:更新坐席状态。 */
   public Map<String, Object> setStatus(long agentId, String status) {
-    return routing.setStatus(agentId, status);
+    Map<String, Object> r = routing.setStatus(agentId, status);
+    inboxChanged(agentId);
+    return r;
   }
 
   /** 历史消息分页代理。 */
@@ -139,12 +159,16 @@ public class AgentService {
 
   /** 抢接 — 把会话从原坐席手中转给主管。 */
   public Map<String, Object> steal(long supervisorId, long fromAgentId, String sessionId) {
-    return routing.transfer(fromAgentId, supervisorId, sessionId);
+    Map<String, Object> r = routing.transfer(fromAgentId, supervisorId, sessionId);
+    inboxChanged(supervisorId, fromAgentId);
+    return r;
   }
 
   /** 通用转接:agent → 另一个 agent / supervisor。 */
   public Map<String, Object> transfer(long fromAgentId, long toAgentId, String sessionId) {
-    return routing.transfer(fromAgentId, toAgentId, sessionId);
+    Map<String, Object> r = routing.transfer(fromAgentId, toAgentId, sessionId);
+    inboxChanged(fromAgentId, toAgentId);
+    return r;
   }
 
   public java.util.List<Map<String, Object>> supervisors() {
