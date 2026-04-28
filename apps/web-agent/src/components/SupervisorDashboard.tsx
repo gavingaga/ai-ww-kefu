@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Capsule, GlassCard } from "@ai-kefu/ui-glass";
 
-import { dashboard, observe, steal, unobserve } from "../api/client.js";
+import { dashboard, observe, steal, supervisorReport, unobserve } from "../api/client.js";
 import type {
   DashboardAgentRow,
   DashboardData,
@@ -32,6 +32,8 @@ export function SupervisorDashboard({
 }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [handoffReasons, setHandoffReasons] = useState<Array<{ key: string; count: number }>>([]);
+  const [toolHealth, setToolHealth] = useState<Array<{ name: string; ok_rate: number; total: number }>>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,10 +41,19 @@ export function SupervisorDashboard({
 
     const refresh = async () => {
       try {
-        const d = await dashboard();
+        const [d, h, tools] = await Promise.all([
+          dashboard(),
+          supervisorReport("handoff", 30).catch(() => ({} as Record<string, unknown>)),
+          supervisorReport("tools", 30).catch(() => ({} as Record<string, unknown>)),
+        ]);
         if (!cancelled) {
           setData(d);
           setError(null);
+          const reasons = (h.by_reason as Array<{ key: string; count: number }>) ?? [];
+          setHandoffReasons(reasons);
+          const rows = (tools.rows as Array<{ name: string; ok_rate: number; total: number }>) ?? [];
+          // 只关注 total>=2 且 ok_rate < 0.85 的
+          setToolHealth(rows.filter((r) => r.total >= 2 && r.ok_rate < 0.85));
         }
       } catch (e) {
         if (!cancelled) setError(String(e));
@@ -133,6 +144,10 @@ export function SupervisorDashboard({
       }}
     >
       <KpiCards kpi={data.kpi} byGroup={data.queue_by_group} />
+      <IncidentBanner queue={data.queue} />
+      {(handoffReasons.length > 0 || toolHealth.length > 0) ? (
+        <FaultsRow reasons={handoffReasons} tools={toolHealth} />
+      ) : null}
       <div
         style={{
           display: "grid",
@@ -672,3 +687,155 @@ const emptyTdStyle: React.CSSProperties = {
   color: "var(--color-text-tertiary)",
   textAlign: "center",
 };
+
+// ───── 赛事预警 banner ─────
+
+function IncidentBanner({ queue }: { queue: DashboardQueueRow[] }) {
+  const byGroup = useMemo(() => {
+    const m = new Map<string, number>();
+    queue.forEach((q) => m.set(q.skill_group, (m.get(q.skill_group) ?? 0) + 1));
+    return m;
+  }, [queue]);
+  const hot: Array<{ skillGroup: string; count: number }> = [];
+  byGroup.forEach((count, skillGroup) => {
+    if (count >= 3) hot.push({ skillGroup, count });
+  });
+  if (hot.length === 0) return null;
+  hot.sort((a, b) => b.count - a.count);
+  return (
+    <GlassCard
+      strength="weak"
+      radius={12}
+      style={{
+        padding: "10px 14px",
+        background: "color-mix(in srgb, var(--color-danger) 12%, var(--color-surface))",
+        border: "1px solid color-mix(in srgb, var(--color-danger) 35%, transparent)",
+        display: "flex",
+        gap: 10,
+        alignItems: "center",
+        flexWrap: "wrap",
+      }}
+    >
+      <strong style={{ fontSize: 14 }}>⚠ 赛事/故障预警</strong>
+      <span style={{ color: "var(--color-text-secondary)", fontSize: 12 }}>
+        以下技能组排队 ≥ 3,可能赛事直播 / 区域故障:
+      </span>
+      {hot.map((h) => (
+        <span
+          key={h.skillGroup}
+          style={{
+            padding: "3px 10px",
+            borderRadius: "var(--radius-capsule)",
+            background: "var(--color-danger)",
+            color: "#fff",
+            fontSize: 12,
+          }}
+        >
+          {h.skillGroup} · {h.count}
+        </span>
+      ))}
+    </GlassCard>
+  );
+}
+
+// ───── 故障 TopN ─────
+
+function FaultsRow({
+  reasons,
+  tools,
+}: {
+  reasons: Array<{ key: string; count: number }>;
+  tools: Array<{ name: string; ok_rate: number; total: number }>;
+}) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <GlassCard radius={12} style={{ padding: 12 }}>
+        <header
+          style={{
+            fontSize: "var(--font-size-caption)",
+            color: "var(--color-text-tertiary)",
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            marginBottom: 6,
+          }}
+        >
+          转人工原因 TopN(近 30 分钟)
+        </header>
+        {reasons.length === 0 ? (
+          <span style={{ color: "var(--color-text-tertiary)", fontSize: 12 }}>暂无</span>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {reasons.slice(0, 5).map((r) => (
+              <div
+                key={r.key}
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  fontSize: 12,
+                }}
+              >
+                <span style={{ minWidth: 110 }}>{r.key}</span>
+                <div style={{ flex: 1, height: 6, background: "var(--color-surface-alt)", borderRadius: 3 }}>
+                  <div
+                    style={{
+                      width: `${Math.min(100, (r.count / Math.max(1, reasons[0]!.count)) * 100)}%`,
+                      height: "100%",
+                      background: "var(--color-danger)",
+                      borderRadius: 3,
+                    }}
+                  />
+                </div>
+                <span style={{ width: 28, textAlign: "right" }}>{r.count}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </GlassCard>
+      <GlassCard radius={12} style={{ padding: 12 }}>
+        <header
+          style={{
+            fontSize: "var(--font-size-caption)",
+            color: "var(--color-text-tertiary)",
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            marginBottom: 6,
+          }}
+        >
+          工具失败率告警(近 30 分钟,ok_rate &lt; 85%)
+        </header>
+        {tools.length === 0 ? (
+          <span style={{ color: "var(--color-success)", fontSize: 12 }}>✓ 全部工具健康</span>
+        ) : (
+          <table style={{ width: "100%", fontSize: 12 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: 4 }}>工具</th>
+                <th style={{ textAlign: "right", padding: 4 }}>调用</th>
+                <th style={{ textAlign: "right", padding: 4 }}>成功率</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tools.map((t) => (
+                <tr key={t.name}>
+                  <td style={{ padding: 4 }}>{t.name}</td>
+                  <td style={{ padding: 4, textAlign: "right" }}>{t.total}</td>
+                  <td
+                    style={{
+                      padding: 4,
+                      textAlign: "right",
+                      color: t.ok_rate < 0.5 ? "var(--color-danger)" : "var(--color-warning)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {(t.ok_rate * 100).toFixed(0)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </GlassCard>
+    </div>
+  );
+}

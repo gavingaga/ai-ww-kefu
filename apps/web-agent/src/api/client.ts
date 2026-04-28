@@ -180,3 +180,13 @@ export async function dashboard(): Promise<import("./types.js").DashboardData> {
   const r = await fetch(`/v1/supervisor/dashboard`);
   return jsonOr<import("./types.js").DashboardData>(r);
 }
+
+export async function supervisorReport(
+  kind: string,
+  windowMin = 30,
+): Promise<Record<string, unknown>> {
+  const r = await fetch(
+    `/v1/supervisor/report/${encodeURIComponent(kind)}?window_min=${windowMin}`,
+  );
+  return jsonOr<Record<string, unknown>>(r);
+}

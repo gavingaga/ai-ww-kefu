@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.aikefu.agentbff.clients.ReportClient;
 import com.aikefu.agentbff.service.AgentService;
 
 /**
@@ -24,9 +25,19 @@ import com.aikefu.agentbff.service.AgentService;
 public class SupervisorController {
 
   private final AgentService svc;
+  private final ReportClient report;
 
-  public SupervisorController(AgentService svc) {
+  public SupervisorController(AgentService svc, ReportClient report) {
     this.svc = svc;
+    this.report = report;
+  }
+
+  /** 主管侧报表 — 复用 admin 透传的同一组 kind,仅给 dashboard 拼接故障 TopN 用。 */
+  @GetMapping("/report/{kind}")
+  public Map<String, Object> reportEndpoint(
+      @org.springframework.web.bind.annotation.PathVariable("kind") String kind,
+      @org.springframework.web.bind.annotation.RequestParam(value = "window_min", defaultValue = "30") int windowMin) {
+    return report.report(kind, windowMin, null);
   }
 
   @GetMapping("/list")
