@@ -26,7 +26,7 @@
 - [x] **T-310** web-agent 实时大屏故障 TopN(转人工 reason 条形 + 工具失败率告警)+ 赛事预警 banner(同 skill_group 排队 ≥3 红底)
 - [x] **T-307** web-agent ContextPanel 完整 8 Tab(概览/用户/订阅/直播间/诊断/历史/合规/备注),走 agent-bff /v1/agent/tools/* 透传 tool-svc
 - [x] **T-308** web-agent AI 建议回复(ai-hub /v1/ai/suggest 非流式 + agent-bff 透传 + ConversationView 输入条上方面板)
-- [ ] **T-311** 高风险操作二次审批(退款 / 未成年 / 封禁)
+- [x] **T-311** 高风险操作二次审批(agent-bff ApprovalStore + Auditor 留痕;坐席 ContextPanel 订阅 Tab 申请 + 2s 轮询;主管 SupervisorDashboard 待审面板,通过/驳回带评论)
 
 ## 优先级 P2(增强体验 + 配置后台)
 

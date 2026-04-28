@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Capsule, GlassCard } from "@ai-kefu/ui-glass";
 
+import { getApproval, submitApproval } from "../api/client.js";
 import { invokeTool, type ToolInvokeResponse } from "../api/tool.js";
 import type { AgentInfo, HandoffPacket } from "../api/types.js";
 import { SupervisorActions } from "./SupervisorActions.js";
@@ -107,7 +108,9 @@ export function ContextPanel({
       >
         {tab === "overview" ? <Overview packet={packet} liveContext={lc} /> : null}
         {tab === "user" ? <UserTab packet={packet} liveContext={lc} /> : null}
-        {tab === "subscription" ? <SubscriptionTab uid={uid} ctx={ctx} /> : null}
+        {tab === "subscription" ? (
+          <SubscriptionTab uid={uid} ctx={ctx} agentId={fromAgentId} sessionId={sessionId} />
+        ) : null}
         {tab === "scene" ? <SceneTab roomId={roomId} vodId={vodId} ctx={ctx} /> : null}
         {tab === "diagnostic" ? (
           <DiagnosticTab roomId={roomId} vodId={vodId} ctx={ctx} />
@@ -182,21 +185,161 @@ function UserTab({
 function SubscriptionTab({
   uid,
   ctx,
+  agentId,
+  sessionId,
 }: {
   uid: number | null;
   ctx: Record<string, unknown> | undefined;
+  agentId: number;
+  sessionId: string | null;
 }) {
   return (
-    <ToolView
-      title="订阅 / 会员"
-      disabled={uid == null}
-      disabledHint="缺少 uid,无法查询"
-      runs={[
-        { name: "get_membership", args: { uid }, label: "会员状态" },
-        { name: "get_subscription_orders", args: { uid, limit: 5 }, label: "最近订单" },
-      ]}
-      ctx={ctx}
-    />
+    <>
+      <ToolView
+        title="订阅 / 会员"
+        disabled={uid == null}
+        disabledHint="缺少 uid,无法查询"
+        runs={[
+          { name: "get_membership", args: { uid }, label: "会员状态" },
+          { name: "get_subscription_orders", args: { uid, limit: 5 }, label: "最近订单" },
+        ]}
+        ctx={ctx}
+      />
+      {uid != null && sessionId ? (
+        <HighRiskApproval
+          agentId={agentId}
+          sessionId={sessionId}
+          tool="cancel_subscription"
+          presetArgs={{ uid }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/** 高风险写工具申请审批 — pending 阶段 2s 轮询状态。 */
+function HighRiskApproval({
+  agentId,
+  sessionId,
+  tool,
+  presetArgs,
+}: {
+  agentId: number;
+  sessionId: string;
+  tool: string;
+  presetArgs: Record<string, unknown>;
+}) {
+  const [reason, setReason] = useState("");
+  const [argsRaw, setArgsRaw] = useState(JSON.stringify(presetArgs));
+  const [status, setStatus] = useState<string | null>(null);
+  const [approvalId, setApprovalId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!approvalId) return;
+    if (status && status !== "pending") return;
+    const t = setInterval(async () => {
+      try {
+        const a = await getApproval(agentId, approvalId);
+        setStatus(a.status);
+      } catch {
+        /* ignore */
+      }
+    }, 2000);
+    return () => clearInterval(t);
+  }, [approvalId, agentId, status]);
+
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const args = argsRaw ? (JSON.parse(argsRaw) as Record<string, unknown>) : {};
+      const a = await submitApproval(agentId, { session_id: sessionId, tool, args, reason });
+      setApprovalId(a.id);
+      setStatus(a.status);
+    } catch (e) {
+      setErr(String((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Section title={`高风险动作 — ${tool}`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12 }}>
+        <label>
+          <span style={{ color: "var(--color-text-tertiary)", fontSize: 11 }}>args (JSON)</span>
+          <textarea
+            value={argsRaw}
+            onChange={(e) => setArgsRaw(e.target.value)}
+            rows={2}
+            disabled={!!approvalId}
+            style={{
+              width: "100%",
+              border: "1px solid var(--color-border)",
+              borderRadius: 6,
+              padding: "4px 6px",
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              background: "var(--color-surface-alt)",
+              color: "var(--color-text-primary)",
+              resize: "vertical",
+            }}
+          />
+        </label>
+        <label>
+          <span style={{ color: "var(--color-text-tertiary)", fontSize: 11 }}>申请理由</span>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            disabled={!!approvalId}
+            placeholder="如:用户已确认订单 ord_xxx,符合 30 天无理由"
+            style={{
+              width: "100%",
+              border: "1px solid var(--color-border)",
+              borderRadius: 6,
+              padding: "4px 6px",
+              fontSize: 12,
+              background: "var(--color-surface-alt)",
+              color: "var(--color-text-primary)",
+            }}
+          />
+        </label>
+        {!approvalId ? (
+          <Capsule size="sm" variant="primary" onClick={submit} disabled={busy || !reason.trim()}>
+            {busy ? "提交中…" : "申请审批"}
+          </Capsule>
+        ) : (
+          <ApprovalStatusBadge status={status ?? "pending"} />
+        )}
+        {err ? <span style={{ color: "var(--color-danger)", fontSize: 11 }}>{err}</span> : null}
+      </div>
+    </Section>
+  );
+}
+
+function ApprovalStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { color: string; text: string }> = {
+    pending: { color: "var(--color-warning)", text: "⏳ 等待主管审批中…" },
+    approved: { color: "var(--color-success)", text: "✓ 已通过,可执行" },
+    rejected: { color: "var(--color-danger)", text: "✗ 已驳回" },
+  };
+  const m = map[status] ?? { color: "var(--color-text-tertiary)", text: status };
+  return (
+    <span
+      style={{
+        padding: "4px 10px",
+        borderRadius: 999,
+        background: `color-mix(in srgb, ${m.color} 20%, var(--color-surface))`,
+        color: m.color,
+        fontSize: 12,
+        fontWeight: 500,
+        alignSelf: "flex-start",
+      }}
+    >
+      {m.text}
+    </span>
   );
 }
 

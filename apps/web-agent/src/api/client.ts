@@ -190,3 +190,57 @@ export async function supervisorReport(
   );
   return jsonOr<Record<string, unknown>>(r);
 }
+
+// ───── 高风险审批 ─────
+
+export interface ApprovalRow {
+  id: string;
+  agent_id: number;
+  session_id: string;
+  tool: string;
+  args?: Record<string, unknown>;
+  reason?: string;
+  status: "pending" | "approved" | "rejected";
+  comment?: string;
+  decided_by?: number;
+  created_at?: string;
+  decided_at?: string;
+}
+
+export async function submitApproval(
+  agentId: number,
+  body: { session_id: string; tool: string; args?: Record<string, unknown>; reason?: string },
+): Promise<ApprovalRow> {
+  const r = await fetch("/v1/agent/approvals", {
+    method: "POST",
+    headers: { ...headers(agentId) },
+    body: JSON.stringify(body),
+  });
+  return jsonOr<ApprovalRow>(r);
+}
+
+export async function getApproval(agentId: number, id: string): Promise<ApprovalRow> {
+  const r = await fetch(`/v1/agent/approvals/${encodeURIComponent(id)}`, {
+    headers: { ...headers(agentId) },
+  });
+  return jsonOr<ApprovalRow>(r);
+}
+
+export async function listPendingApprovals(): Promise<ApprovalRow[]> {
+  const r = await fetch("/v1/supervisor/approvals");
+  return jsonOr<ApprovalRow[]>(r);
+}
+
+export async function decideApproval(
+  supervisorId: number,
+  id: string,
+  approve: boolean,
+  comment?: string,
+): Promise<ApprovalRow> {
+  const r = await fetch(`/v1/supervisor/approvals/${encodeURIComponent(id)}/decide`, {
+    method: "POST",
+    headers: { ...headers(supervisorId) },
+    body: JSON.stringify({ approve, comment }),
+  });
+  return jsonOr<ApprovalRow>(r);
+}

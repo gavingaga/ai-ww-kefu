@@ -2,7 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Capsule, GlassCard } from "@ai-kefu/ui-glass";
 
-import { dashboard, observe, steal, supervisorReport, unobserve } from "../api/client.js";
+import {
+  dashboard,
+  decideApproval,
+  listPendingApprovals,
+  observe,
+  steal,
+  supervisorReport,
+  unobserve,
+  type ApprovalRow,
+} from "../api/client.js";
 import type {
   DashboardAgentRow,
   DashboardData,
@@ -34,6 +43,7 @@ export function SupervisorDashboard({
   const [error, setError] = useState<string | null>(null);
   const [handoffReasons, setHandoffReasons] = useState<Array<{ key: string; count: number }>>([]);
   const [toolHealth, setToolHealth] = useState<Array<{ name: string; ok_rate: number; total: number }>>([]);
+  const [approvals, setApprovals] = useState<ApprovalRow[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,10 +51,11 @@ export function SupervisorDashboard({
 
     const refresh = async () => {
       try {
-        const [d, h, tools] = await Promise.all([
+        const [d, h, tools, apv] = await Promise.all([
           dashboard(),
           supervisorReport("handoff", 30).catch(() => ({} as Record<string, unknown>)),
           supervisorReport("tools", 30).catch(() => ({} as Record<string, unknown>)),
+          listPendingApprovals().catch(() => [] as ApprovalRow[]),
         ]);
         if (!cancelled) {
           setData(d);
@@ -54,6 +65,7 @@ export function SupervisorDashboard({
           const rows = (tools.rows as Array<{ name: string; ok_rate: number; total: number }>) ?? [];
           // 只关注 total>=2 且 ok_rate < 0.85 的
           setToolHealth(rows.filter((r) => r.total >= 2 && r.ok_rate < 0.85));
+          setApprovals(apv);
         }
       } catch (e) {
         if (!cancelled) setError(String(e));
@@ -145,6 +157,15 @@ export function SupervisorDashboard({
     >
       <KpiCards kpi={data.kpi} byGroup={data.queue_by_group} />
       <IncidentBanner queue={data.queue} />
+      {approvals.length > 0 ? (
+        <ApprovalsPanel
+          rows={approvals}
+          onDecide={async (id, approve, comment) => {
+            await decideApproval(supervisorId, id, approve, comment);
+            await refreshNow();
+          }}
+        />
+      ) : null}
       {(handoffReasons.length > 0 || toolHealth.length > 0) ? (
         <FaultsRow reasons={handoffReasons} tools={toolHealth} />
       ) : null}
@@ -739,6 +760,74 @@ function IncidentBanner({ queue }: { queue: DashboardQueueRow[] }) {
 }
 
 // ───── 故障 TopN ─────
+
+// ───── 高风险审批 ─────
+
+function ApprovalsPanel({
+  rows,
+  onDecide,
+}: {
+  rows: ApprovalRow[];
+  onDecide: (id: string, approve: boolean, comment?: string) => Promise<void>;
+}) {
+  return (
+    <GlassCard
+      strength="weak"
+      radius={12}
+      style={{
+        padding: "10px 14px",
+        background: "color-mix(in srgb, var(--color-warning) 12%, var(--color-surface))",
+        border: "1px solid color-mix(in srgb, var(--color-warning) 35%, transparent)",
+      }}
+    >
+      <header style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+        ⚠ 待审批({rows.length})
+      </header>
+      <table style={{ width: "100%", fontSize: 12 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: "left", padding: 4 }}>坐席</th>
+            <th style={{ textAlign: "left", padding: 4 }}>会话</th>
+            <th style={{ textAlign: "left", padding: 4 }}>工具</th>
+            <th style={{ textAlign: "left", padding: 4 }}>原因</th>
+            <th style={{ padding: 4 }}>动作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td style={{ padding: 4 }}>#{r.agent_id}</td>
+              <td style={{ padding: 4, fontFamily: "var(--font-mono)", fontSize: 11 }}>
+                {r.session_id?.slice(0, 14)}…
+              </td>
+              <td style={{ padding: 4 }}>
+                <code style={{ fontSize: 11 }}>{r.tool}</code>
+                <div style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>
+                  {r.args ? JSON.stringify(r.args).slice(0, 80) : "(无参数)"}
+                </div>
+              </td>
+              <td style={{ padding: 4, color: "var(--color-text-secondary)" }}>
+                {r.reason || "—"}
+              </td>
+              <td style={{ padding: 4, display: "flex", gap: 4 }}>
+                <Capsule size="sm" variant="primary" onClick={() => void onDecide(r.id, true)}>
+                  通过
+                </Capsule>
+                <Capsule
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void onDecide(r.id, false, prompt("驳回原因(选填)") ?? undefined)}
+                >
+                  驳回
+                </Capsule>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </GlassCard>
+  );
+}
 
 function FaultsRow({
   reasons,
