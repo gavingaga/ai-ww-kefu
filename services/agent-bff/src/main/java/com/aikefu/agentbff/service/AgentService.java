@@ -174,4 +174,9 @@ public class AgentService {
   public java.util.List<Map<String, Object>> supervisors() {
     return routing.supervisors();
   }
+
+  /** 主管视图 — 直接转发 routing.dashboard。 */
+  public Map<String, Object> dashboard() {
+    return routing.dashboard();
+  }
 }

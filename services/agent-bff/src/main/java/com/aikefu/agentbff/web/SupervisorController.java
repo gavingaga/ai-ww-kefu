@@ -34,6 +34,12 @@ public class SupervisorController {
     return svc.supervisors();
   }
 
+  /** 实时大屏 — 主管视图直接消费。 */
+  @GetMapping("/dashboard")
+  public Map<String, Object> dashboard() {
+    return svc.dashboard();
+  }
+
   /** 监听 — 把会话加入主管的 observingSessionIds。 */
   @PostMapping("/observe")
   public Map<String, Object> observe(

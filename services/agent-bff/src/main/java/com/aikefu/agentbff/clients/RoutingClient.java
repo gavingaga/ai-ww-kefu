@@ -80,6 +80,14 @@ public class RoutingClient {
     return client.get().uri("/v1/stats").retrieve().body(new ParameterizedTypeReference<>() {});
   }
 
+  public Map<String, Object> dashboard() {
+    return client
+        .get()
+        .uri("/v1/dashboard")
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
   // ───── 主管干预(T-302) ─────
 
   public Map<String, Object> transfer(long fromAgentId, long toAgentId, String sessionId) {
