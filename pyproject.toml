@@ -15,9 +15,9 @@ dev = [
 
 [tool.uv.workspace]
 members = [
-    # AI 相关 Python 服务在此挂入,例如:
+    "services/llm-router",
+    # 后续:
     # "services/ai-hub",
-    # "services/llm-router",
     # "services/kb-svc",
 ]
 
