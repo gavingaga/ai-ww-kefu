@@ -47,6 +47,36 @@ public class AgentService {
   }
 
   /**
+   * 把入库后的会话消息以 SSE 事件 {@code session-message} 推送给:发送方 + 所有观察该会话的主管。
+   *
+   * <p>消除 web-agent 当前会话的 4s 轮询,让坐席侧实时看到 reply / whisper 等动作。
+   *
+   * @param sessionId 目标会话
+   * @param saved session-svc 入库后的 message
+   * @param senderAgentId 发送方坐席 ID(可空,例如系统消息);非空时也会单独推一份给自己
+   */
+  private void publishSessionMessage(String sessionId, Map<String, Object> saved, Long senderAgentId) {
+    if (sessionId == null || saved == null || saved.isEmpty()) return;
+    java.util.Map<String, Object> payload = new LinkedHashMap<>();
+    payload.put("session_id", sessionId);
+    payload.put("message", saved);
+    payload.put("ts", System.currentTimeMillis());
+
+    java.util.LinkedHashSet<Long> targets = new java.util.LinkedHashSet<>();
+    if (senderAgentId != null && senderAgentId > 0) {
+      targets.add(senderAgentId);
+    }
+    try {
+      targets.addAll(routing.observersOf(sessionId));
+    } catch (Exception ignored) {
+      // 路由不可达不阻塞 push
+    }
+    for (Long id : targets) {
+      bus.publish(id, "session-message", payload);
+    }
+  }
+
+  /**
    * 把 session-svc 入库后的消息转成 WS 帧推到 gateway-ws,实时到达 C 端。
    *
    * @param sessionId 目标会话
@@ -161,12 +191,19 @@ public class AgentService {
     return session.messages(sessionId, before, Math.max(1, Math.min(limit, 100)));
   }
 
-  /** 坐席代发消息 — 落库 + 实时推到 C 端 WS。 */
+  /** 坐席代发消息 — 落库 + 实时推到 C 端 WS + 通知坐席侧 SSE。 */
   public Map<String, Object> sendMessage(
-      String sessionId, String idempotencyKey, Map<String, Object> body) {
+      String sessionId, String idempotencyKey, Map<String, Object> body, Long senderAgentId) {
     Map<String, Object> saved = session.append(sessionId, idempotencyKey, body);
     pushToClient(sessionId, saved, "agent");
+    publishSessionMessage(sessionId, saved, senderAgentId);
     return saved;
+  }
+
+  /** 兼容旧签名(没有 senderAgentId)— 不推 session-message。 */
+  public Map<String, Object> sendMessage(
+      String sessionId, String idempotencyKey, Map<String, Object> body) {
+    return sendMessage(sessionId, idempotencyKey, body, null);
   }
 
   /** 注册 / 登录:坐席首次接入时往 routing 写一份。 */
@@ -198,6 +235,7 @@ public class AgentService {
         session.append(
             sessionId, "whisper-" + supervisorId + "-" + System.currentTimeMillis(), body);
     pushToClient(sessionId, saved, "system");
+    publishSessionMessage(sessionId, saved, supervisorId);
     return saved;
   }
 

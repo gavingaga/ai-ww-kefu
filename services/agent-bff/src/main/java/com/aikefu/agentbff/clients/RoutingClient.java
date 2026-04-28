@@ -124,4 +124,34 @@ public class RoutingClient {
         .retrieve()
         .body(new ParameterizedTypeReference<>() {});
   }
+
+  /** 列出正在观察某会话的主管 ID 集合;失败 / 网络异常时回空。 */
+  public java.util.List<Long> observersOf(String sessionId) {
+    try {
+      Map<String, Object> body =
+          client
+              .get()
+              .uri("/v1/sessions/{sid}/observers", sessionId)
+              .retrieve()
+              .body(new ParameterizedTypeReference<>() {});
+      Object obs = body == null ? null : body.get("observers");
+      if (obs instanceof java.util.Collection<?> c) {
+        java.util.List<Long> out = new java.util.ArrayList<>();
+        for (Object o : c) {
+          if (o instanceof Number n) out.add(n.longValue());
+          else if (o != null) {
+            try {
+              out.add(Long.parseLong(String.valueOf(o)));
+            } catch (NumberFormatException ignored) {
+              // skip non-numeric entries
+            }
+          }
+        }
+        return out;
+      }
+    } catch (Exception ignored) {
+      // 推送链路不应被路由失败阻塞
+    }
+    return java.util.List.of();
+  }
 }

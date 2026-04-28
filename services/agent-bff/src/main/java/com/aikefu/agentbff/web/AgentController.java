@@ -96,6 +96,6 @@ public class AgentController {
     req.put("role", "agent");
     req.putIfAbsent("type", "text");
     req.put("aiMeta", Map.of("agent_id", agentId));
-    return svc.sendMessage(sessionId, idempotencyKey, req);
+    return svc.sendMessage(sessionId, idempotencyKey, req, agentId);
   }
 }

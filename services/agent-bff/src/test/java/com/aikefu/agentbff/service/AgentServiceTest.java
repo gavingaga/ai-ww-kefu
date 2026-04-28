@@ -173,6 +173,36 @@ class AgentServiceTest {
   }
 
   @Test
+  void sendMessageWithSenderPublishesSessionMessageToSenderAndObservers() {
+    var routing = mock(RoutingClient.class);
+    var session = mock(SessionClient.class);
+    var bus = mock(com.aikefu.agentbff.push.AgentEventBus.class);
+    var gateway = mock(com.aikefu.agentbff.clients.GatewayClient.class);
+    when(session.append(anyString(), anyString(), org.mockito.ArgumentMatchers.anyMap()))
+        .thenReturn(Map.of("id", "msg_1", "type", "text", "role", "agent"));
+    when(routing.observersOf("ses_a")).thenReturn(List.of(99L, 88L));
+
+    var svc = new AgentService(routing, session, bus, gateway);
+    svc.sendMessage("ses_a", "k", Map.of("type", "text"), 1L);
+
+    org.mockito.Mockito.verify(bus)
+        .publish(
+            org.mockito.ArgumentMatchers.eq(1L),
+            org.mockito.ArgumentMatchers.eq("session-message"),
+            org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.verify(bus)
+        .publish(
+            org.mockito.ArgumentMatchers.eq(99L),
+            org.mockito.ArgumentMatchers.eq("session-message"),
+            org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.verify(bus)
+        .publish(
+            org.mockito.ArgumentMatchers.eq(88L),
+            org.mockito.ArgumentMatchers.eq("session-message"),
+            org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
   void whisperPushesAsSystem() {
     var routing = mock(RoutingClient.class);
     var session = mock(SessionClient.class);
