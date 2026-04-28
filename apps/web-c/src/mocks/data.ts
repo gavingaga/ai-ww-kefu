@@ -37,22 +37,64 @@ export const quickReplies: QuickReply[] = [
   { id: 5, label: "联系人工", payload: "转人工", scene: "handoff", icon: "👤" },
 ];
 
-export interface Message {
-  id: string;
-  role: "user" | "ai" | "agent" | "system";
-  text: string;
-  ts: number;
-  thinking?: boolean;
+export interface FaqAction {
+  type: "send_text" | "handoff" | "open_link" | "open_form";
+  label: string;
+  payload?: string;
 }
+
+export interface FaqAttachment {
+  type: "image" | "file" | "link";
+  url: string;
+}
+
+export interface FaqFollowUp {
+  id: string;
+  title: string;
+}
+
+export interface FaqAnswer {
+  contentMd?: string;
+  attachments?: FaqAttachment[];
+  followUps?: FaqFollowUp[];
+  actions?: FaqAction[];
+}
+
+export interface FaqMessageContent {
+  nodeId: string;
+  title: string;
+  how?: "exact" | "similar";
+  score?: number;
+  answer: FaqAnswer;
+}
+
+export type Message =
+  | {
+      kind: "text";
+      id: string;
+      role: "user" | "ai" | "agent" | "system";
+      text: string;
+      ts: number;
+      thinking?: boolean;
+    }
+  | {
+      kind: "faq";
+      id: string;
+      role: "ai";
+      ts: number;
+      faq: FaqMessageContent;
+    };
 
 export const initialMessages: Message[] = [
   {
+    kind: "text",
     id: "m1",
     role: "system",
     text: "已为您接入「智能客服」,看到您正在观看《周末游戏直播》",
     ts: Date.now() - 60000,
   },
   {
+    kind: "text",
     id: "m2",
     role: "ai",
     text: "你好,我是直播平台的智能助手 ✨ 我可以帮你处理:\n· 卡顿 / 黑屏 / 清晰度\n· 会员订阅 / 续费 / 退款\n· 弹幕 / 礼物 / 举报\n· 转人工",

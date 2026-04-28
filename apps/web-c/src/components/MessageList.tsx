@@ -3,12 +3,16 @@ import { useEffect, useRef } from "react";
 import { Avatar, Bubble } from "@ai-kefu/ui-glass";
 
 import type { Message } from "../mocks/data.js";
+import { FaqAnswerCard } from "./FaqAnswerCard.js";
 
 export interface MessageListProps {
   items: Message[];
+  onSend: (text: string) => void;
+  onHandoff: () => void;
+  onOpenLink: (url: string) => void;
 }
 
-export function MessageList({ items }: MessageListProps) {
+export function MessageList({ items, onSend, onHandoff, onOpenLink }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -28,14 +32,40 @@ export function MessageList({ items }: MessageListProps) {
       }}
     >
       {items.map((m) => (
-        <Row key={m.id} m={m} />
+        <Row
+          key={m.id}
+          m={m}
+          onSend={onSend}
+          onHandoff={onHandoff}
+          onOpenLink={onOpenLink}
+        />
       ))}
       <div ref={bottomRef} />
     </div>
   );
 }
 
-function Row({ m }: { m: Message }) {
+function Row({
+  m,
+  onSend,
+  onHandoff,
+  onOpenLink,
+}: {
+  m: Message;
+  onSend: (t: string) => void;
+  onHandoff: () => void;
+  onOpenLink: (u: string) => void;
+}) {
+  if (m.kind === "faq") {
+    return (
+      <FaqAnswerCard
+        faq={m.faq}
+        onSend={onSend}
+        onHandoff={onHandoff}
+        onOpenLink={onOpenLink}
+      />
+    );
+  }
   if (m.role === "system") {
     return <Bubble role="system">{m.text}</Bubble>;
   }
