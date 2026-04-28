@@ -1,4 +1,5 @@
 import type {
+  AnnouncementRow,
   AuditQueryResponse,
   DashboardData,
   FaqPreviewResult,
@@ -6,6 +7,8 @@ import type {
   KbDebugResponse,
   KbIngestResponse,
   KbStats,
+  LoginResponse,
+  QuickReplyRow,
 } from "./types.js";
 
 /** 走 vite proxy → agent-bff /v1/admin/* 透传到 kb-svc。 */
@@ -100,6 +103,36 @@ export interface AuditQueryInput {
   sessionId?: string;
   since?: string;
   limit?: number;
+}
+
+export function login(username: string, password: string): Promise<LoginResponse> {
+  return postJSON<LoginResponse>("/v1/admin/login", { username, password });
+}
+
+// ───── 公告 / 快捷按钮 ─────
+
+export function listAnnouncements(): Promise<AnnouncementRow[]> {
+  return getJSON<AnnouncementRow[]>("/v1/admin/announcements");
+}
+
+export function saveAnnouncement(row: AnnouncementRow): Promise<AnnouncementRow> {
+  return postJSON<AnnouncementRow>("/v1/admin/announcements", row);
+}
+
+export async function deleteAnnouncement(id: string): Promise<void> {
+  await fetch("/v1/admin/announcements/" + encodeURIComponent(id), { method: "DELETE" });
+}
+
+export function listQuickReplies(): Promise<QuickReplyRow[]> {
+  return getJSON<QuickReplyRow[]>("/v1/admin/quick-replies");
+}
+
+export function saveQuickReply(row: QuickReplyRow): Promise<QuickReplyRow> {
+  return postJSON<QuickReplyRow>("/v1/admin/quick-replies", row);
+}
+
+export async function deleteQuickReply(id: string): Promise<void> {
+  await fetch("/v1/admin/quick-replies/" + encodeURIComponent(id), { method: "DELETE" });
 }
 
 export function auditQuery(q: AuditQueryInput): Promise<AuditQueryResponse> {

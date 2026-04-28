@@ -43,4 +43,66 @@ public class NotifyClient {
         .retrieve()
         .body(new ParameterizedTypeReference<>() {});
   }
+
+  // ───── 公告 / 快捷按钮 ─────
+
+  public List<Map<String, Object>> announcements() {
+    return client
+        .get()
+        .uri("/v1/announcements")
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
+  public Map<String, Object> saveAnnouncement(Map<String, Object> body) {
+    Object id = body.get("id");
+    if (id == null || String.valueOf(id).isBlank()) {
+      return client
+          .post()
+          .uri("/v1/announcements")
+          .body(body)
+          .retrieve()
+          .body(new ParameterizedTypeReference<>() {});
+    }
+    return client
+        .put()
+        .uri("/v1/announcements/{id}", id)
+        .body(body)
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
+  public void deleteAnnouncement(String id) {
+    client.delete().uri("/v1/announcements/{id}", id).retrieve().toBodilessEntity();
+  }
+
+  public List<Map<String, Object>> quickReplies() {
+    return client
+        .get()
+        .uri("/v1/quick-replies")
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
+  public Map<String, Object> saveQuickReply(Map<String, Object> body) {
+    Object id = body.get("id");
+    if (id == null || String.valueOf(id).isBlank()) {
+      return client
+          .post()
+          .uri("/v1/quick-replies")
+          .body(body)
+          .retrieve()
+          .body(new ParameterizedTypeReference<>() {});
+    }
+    return client
+        .put()
+        .uri("/v1/quick-replies/{id}", id)
+        .body(body)
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
+  public void deleteQuickReply(String id) {
+    client.delete().uri("/v1/quick-replies/{id}", id).retrieve().toBodilessEntity();
+  }
 }

@@ -185,3 +185,33 @@ export interface AuditQueryResponse {
   size: number;
   capacity?: number;
 }
+
+// ───── 登录 ─────
+
+export type AdminRole = "ADMIN" | "SUPERVISOR" | "AGENT";
+
+export interface LoginResponse {
+  ok: boolean;
+  token: string;
+  user: { username: string; role: AdminRole };
+}
+
+// ───── 公告 / 快捷按钮 ─────
+
+export interface AnnouncementRow {
+  id?: string;
+  level: "info" | "warning" | "critical";
+  content: string;
+  active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface QuickReplyRow {
+  id?: string;
+  label: string;
+  payload: string;
+  scene?: string;
+  icon?: string;
+  active?: boolean;
+}

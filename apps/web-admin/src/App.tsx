@@ -1,23 +1,57 @@
 import { useState } from "react";
 
+import type { AdminRole } from "./api/types.js";
+import { clearSession, loadSession, type AdminSession } from "./auth/session.js";
 import { AuditPanel } from "./components/AuditPanel.js";
 import { DashboardPanel } from "./components/DashboardPanel.js";
 import { FaqPanel } from "./components/FaqPanel.js";
 import { KbDebugPanel } from "./components/KbDebugPanel.js";
 import { KbIngestPanel } from "./components/KbIngestPanel.js";
+import { LoginGate } from "./components/LoginGate.js";
+import { NoticesPanel } from "./components/NoticesPanel.js";
 
-type Page = "dashboard" | "audit" | "kb-debug" | "kb-ingest" | "faq";
+type Page = "dashboard" | "audit" | "notices" | "kb-debug" | "kb-ingest" | "faq";
 
-const NAV: Array<{ key: Page; label: string; hint: string }> = [
-  { key: "dashboard", label: "运营看板", hint: "队列 / 坐席 / 负载实时态" },
-  { key: "audit", label: "审计流水", hint: "主管干预 / 坐席动作记录" },
-  { key: "kb-debug", label: "KB 检索调试", hint: "向量 / BM25 / RRF / Rerank 调参" },
-  { key: "kb-ingest", label: "KB 入库", hint: "新增文档 → 切片 + 嵌入" },
-  { key: "faq", label: "FAQ 节点管理", hint: "树编辑 + 命中模拟器" },
+interface NavItem {
+  key: Page;
+  label: string;
+  hint: string;
+  /** 允许查看本页的最低角色:ADMIN(全部)< SUPERVISOR < AGENT */
+  minRole: AdminRole;
+}
+
+const NAV: NavItem[] = [
+  { key: "dashboard", label: "运营看板", hint: "队列 / 坐席 / 负载实时态", minRole: "AGENT" },
+  { key: "audit", label: "审计流水", hint: "主管干预 / 坐席动作记录", minRole: "SUPERVISOR" },
+  { key: "notices", label: "公告 / 快捷按钮", hint: "运营 CRUD", minRole: "ADMIN" },
+  { key: "kb-debug", label: "KB 检索调试", hint: "向量 / BM25 / RRF / Rerank 调参", minRole: "ADMIN" },
+  { key: "kb-ingest", label: "KB 入库", hint: "新增文档 → 切片 + 嵌入", minRole: "ADMIN" },
+  { key: "faq", label: "FAQ 节点管理", hint: "树编辑 + 命中模拟器", minRole: "ADMIN" },
 ];
 
+const ROLE_RANK: Record<AdminRole, number> = { ADMIN: 3, SUPERVISOR: 2, AGENT: 1 };
+
+function canSee(role: AdminRole, item: NavItem): boolean {
+  return ROLE_RANK[role] >= ROLE_RANK[item.minRole];
+}
+
 export function App() {
+  const [session, setSession] = useState<AdminSession | null>(loadSession);
   const [page, setPage] = useState<Page>("dashboard");
+
+  if (!session) {
+    return <LoginGate onLogin={setSession} />;
+  }
+
+  const allowed = NAV.filter((n) => canSee(session.role, n));
+  // 当前 page 不在 allowed 时回到 dashboard
+  const currentPage = allowed.some((n) => n.key === page) ? page : (allowed[0]?.key ?? "dashboard");
+
+  const onLogout = () => {
+    clearSession();
+    setSession(null);
+  };
+
   return (
     <div style={{ display: "flex", height: "100%" }}>
       <aside
@@ -32,8 +66,8 @@ export function App() {
         }}
       >
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>客服管理后台</div>
-        {NAV.map((n) => {
-          const active = page === n.key;
+        {allowed.map((n) => {
+          const active = currentPage === n.key;
           return (
             <button
               key={n.key}
@@ -56,15 +90,33 @@ export function App() {
           );
         })}
         <div style={{ marginTop: "auto", fontSize: 11, color: "var(--color-text-tertiary)" }}>
-          代理:agent-bff /v1/admin/*
+          <div style={{ marginBottom: 6 }}>
+            <strong>{session.username}</strong> · {session.role}
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            style={{
+              border: "1px solid var(--color-border)",
+              background: "transparent",
+              borderRadius: 8,
+              padding: "4px 10px",
+              cursor: "pointer",
+              fontSize: 11,
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            登出
+          </button>
         </div>
       </aside>
       <main style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-        {page === "dashboard" ? <DashboardPanel /> : null}
-        {page === "audit" ? <AuditPanel /> : null}
-        {page === "kb-debug" ? <KbDebugPanel /> : null}
-        {page === "kb-ingest" ? <KbIngestPanel /> : null}
-        {page === "faq" ? <FaqPanel /> : null}
+        {currentPage === "dashboard" ? <DashboardPanel /> : null}
+        {currentPage === "audit" ? <AuditPanel /> : null}
+        {currentPage === "notices" ? <NoticesPanel /> : null}
+        {currentPage === "kb-debug" ? <KbDebugPanel /> : null}
+        {currentPage === "kb-ingest" ? <KbIngestPanel /> : null}
+        {currentPage === "faq" ? <FaqPanel /> : null}
       </main>
     </div>
   );

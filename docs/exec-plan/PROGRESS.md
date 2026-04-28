@@ -17,7 +17,7 @@
 - [x] **T-108** upload-svc:STS / 直传 / 病毒扫描钩子 / 白名单(支撑 T-401)
 - [x] **T-401** web-c 图片 / 文件上传(直传 / 进度 / 失败提示)
 - [x] **T-405** web-c 满意度评价卡(星级 + 标签 + 评论)+ 30s 撤回重评 + notify-svc /v1/csat
-- [ ] **T-114** web-admin 登录 + RBAC + 公告 / 快捷按钮 CRUD
+- [x] **T-114** web-admin 登录(mock,localStorage)+ RBAC(ADMIN/SUPERVISOR/AGENT NAV 过滤)+ 公告 / 快捷按钮 CRUD(notify-svc 内存存储)
 
 ## 优先级 P1(数据底座 + 运营观测)
 

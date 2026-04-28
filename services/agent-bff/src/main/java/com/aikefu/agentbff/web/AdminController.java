@@ -14,6 +14,9 @@ import com.aikefu.agentbff.clients.AuditClient;
 import com.aikefu.agentbff.clients.KbClient;
 import com.aikefu.agentbff.clients.NotifyClient;
 import com.aikefu.agentbff.clients.RoutingClient;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
@@ -87,6 +90,67 @@ public class AdminController {
   @PostMapping("/faq/preview")
   public Map<String, Object> faqPreview(@RequestBody Map<String, Object> body) {
     return notify.faqPreview(body);
+  }
+
+  // ───── 登录(M3 mock) ─────
+
+  /**
+   * 极简登录:
+   * <ul>
+   *   <li>username 含 "admin" → role=ADMIN
+   *   <li>username 含 "supervisor" 或 "sup" → role=SUPERVISOR
+   *   <li>其它 → role=AGENT
+   *   <li>password 任意非空即过(M3 起步,后续接 SSO / OIDC)
+   * </ul>
+   */
+  @PostMapping("/login")
+  public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, Object> body) {
+    String u = String.valueOf(body.getOrDefault("username", "")).trim().toLowerCase();
+    String p = String.valueOf(body.getOrDefault("password", ""));
+    if (u.isEmpty() || p.isEmpty()) {
+      return ResponseEntity.status(401).body(Map.of("error", "username/password required"));
+    }
+    String role = u.contains("admin") ? "ADMIN" : (u.contains("sup") ? "SUPERVISOR" : "AGENT");
+    String token = "mock_" + Long.toHexString(System.currentTimeMillis()) + "_" + u;
+    return ResponseEntity.ok(
+        Map.of(
+            "ok", true,
+            "token", token,
+            "user", Map.of("username", u, "role", role)));
+  }
+
+  // ───── 公告 / 快捷按钮 ─────
+
+  @GetMapping("/announcements")
+  public List<Map<String, Object>> announcements() {
+    return notify.announcements();
+  }
+
+  @PostMapping("/announcements")
+  public Map<String, Object> saveAnnouncement(@RequestBody Map<String, Object> body) {
+    return notify.saveAnnouncement(body);
+  }
+
+  @DeleteMapping("/announcements/{id}")
+  public ResponseEntity<Void> deleteAnnouncement(@PathVariable("id") String id) {
+    notify.deleteAnnouncement(id);
+    return ResponseEntity.noContent().build();
+  }
+
+  @GetMapping("/quick-replies")
+  public List<Map<String, Object>> quickReplies() {
+    return notify.quickReplies();
+  }
+
+  @PostMapping("/quick-replies")
+  public Map<String, Object> saveQuickReply(@RequestBody Map<String, Object> body) {
+    return notify.saveQuickReply(body);
+  }
+
+  @DeleteMapping("/quick-replies/{id}")
+  public ResponseEntity<Void> deleteQuickReply(@PathVariable("id") String id) {
+    notify.deleteQuickReply(id);
+    return ResponseEntity.noContent().build();
   }
 
   // ───── 审计 ─────
