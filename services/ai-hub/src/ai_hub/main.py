@@ -29,6 +29,7 @@ from .faq_client import FaqClient
 from .handoff import HandoffReason, build_handoff_packet
 from .llm_client import chat_once_full, chat_stream
 from .prompt import build_messages, render_with_meta
+from .routing_client import RoutingClient
 from .tool_loop import run_tool_loop
 from .tools import ToolRegistry, default_registry
 from .tools.registry import ToolContext
@@ -59,12 +60,15 @@ def create_app(
     *,
     faq_client: FaqClient | None = None,
     tool_registry: ToolRegistry | None = None,
+    routing_client: RoutingClient | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="ai-kefu ai-hub", version="0.3.0")
+    app = FastAPI(title="ai-kefu ai-hub", version="0.4.0")
 
     llm_router_base = os.getenv("LLM_ROUTER_URL", "http://localhost:8090")
     notify_base = os.getenv("NOTIFY_SVC_URL", "http://localhost:8082")
+    routing_base = os.getenv("ROUTING_SVC_URL", "http://localhost:8083")
     fc = faq_client if faq_client is not None else FaqClient(notify_base)
+    rc = routing_client if routing_client is not None else RoutingClient(routing_base)
     tools = tool_registry if tool_registry is not None else default_registry()
     max_tool_depth = int(os.getenv("AI_HUB_TOOL_MAX_DEPTH", "3"))
 
@@ -83,6 +87,14 @@ def create_app(
                 packet = await _build_packet_for_handoff(
                     req, decision.reason, decision.hits, llm_router_base
                 )
+                # 主动投到 routing-svc 队列(失败仅日志,不阻塞 SSE)
+                enq = await rc.enqueue(
+                    session_id=req.session_id,
+                    tenant_id=int(req.profile.get("tenant_id", 1)),
+                    skill_group=packet.skill_group_hint,
+                    packet=packet.to_dict(),
+                )
+                queue_entry_id = (enq or {}).get("id")
                 yield _sse({"event": "handoff_packet", **packet.to_dict()})
                 yield _sse(
                     {
@@ -91,6 +103,8 @@ def create_app(
                         "hits": decision.hits,
                         "summary": packet.summary,
                         "skill_group_hint": packet.skill_group_hint,
+                        "queue_entry_id": queue_entry_id,
+                        "enqueued": enq is not None,
                     }
                 )
                 yield _sse({"event": "done"})
