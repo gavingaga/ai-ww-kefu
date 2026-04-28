@@ -58,3 +58,50 @@ export interface KbStats {
   embedder: string;
   dim: number;
 }
+
+export interface KbIngestResponse {
+  ok: boolean;
+  chunks: number;
+  doc_id: string;
+}
+
+// ───── FAQ ─────
+
+export interface FaqAttachment {
+  type?: string;
+  url?: string;
+  text?: string;
+  [k: string]: unknown;
+}
+
+export interface FaqAnswer {
+  contentMd?: string;
+  attachments?: FaqAttachment[];
+}
+
+export interface FaqNode {
+  id: string;
+  title: string;
+  icon?: string;
+  sortOrder?: number;
+  isLeaf?: boolean;
+  synonyms?: string[];
+  answer?: FaqAnswer;
+  children?: FaqNode[];
+}
+
+export interface FaqTree {
+  id?: string;
+  scene: string;
+  version?: number;
+  nodes: FaqNode[];
+}
+
+export interface FaqPreviewResult {
+  hit: boolean;
+  how?: string;
+  score?: number;
+  node_id?: string;
+  title?: string;
+  hits?: number;
+}

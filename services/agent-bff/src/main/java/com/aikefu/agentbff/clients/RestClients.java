@@ -42,6 +42,16 @@ public class RestClients {
         .build();
   }
 
+  @Bean(name = "notifyRestClient")
+  public RestClient notifyRestClient(
+      @Value("${aikefu.notify-svc.url:http://localhost:8082}") String baseUrl,
+      @Value("${aikefu.notify-svc.timeout-ms:3000}") int timeoutMs) {
+    return RestClient.builder()
+        .baseUrl(baseUrl)
+        .requestFactory(factory(timeoutMs))
+        .build();
+  }
+
   private static SimpleClientHttpRequestFactory factory(int timeoutMs) {
     SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
     f.setConnectTimeout(Duration.ofMillis(timeoutMs));

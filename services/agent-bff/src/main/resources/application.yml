@@ -22,6 +22,9 @@ aikefu:
   kb-svc:
     url: ${KB_SVC_URL:http://localhost:8092}
     timeout-ms: 5000
+  notify-svc:
+    url: ${NOTIFY_SVC_URL:http://localhost:8082}
+    timeout-ms: 3000
   gateway-ws:
     # 留空则关闭"坐席消息直推 C 端"功能;C 端仍能通过会话历史拉到回复
     url: ${GATEWAY_WS_URL:}

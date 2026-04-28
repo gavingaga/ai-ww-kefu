@@ -1,5 +1,6 @@
 package com.aikefu.agentbff.clients;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -7,42 +8,37 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-/** 调 kb-svc 的轻量适配 — 仅提供管理后台需要的只读端点。 */
+/** 调 notify-svc 的轻量适配 — 当前只用 FAQ 管理路径。 */
 @Component
-public class KbClient {
+public class NotifyClient {
 
   private final RestClient client;
 
-  public KbClient(@Qualifier("kbRestClient") RestClient client) {
+  public NotifyClient(@Qualifier("notifyRestClient") RestClient client) {
     this.client = client;
   }
 
-  public Map<String, Object> stats() {
-    return client.get().uri("/v1/kb/stats").retrieve().body(new ParameterizedTypeReference<>() {});
-  }
-
-  public Map<String, Object> debugSearch(Map<String, Object> body) {
+  public List<Map<String, Object>> faqTrees() {
     return client
-        .post()
-        .uri("/v1/kb/debug/search")
-        .body(body)
+        .get()
+        .uri("/admin/v1/faq/trees")
         .retrieve()
         .body(new ParameterizedTypeReference<>() {});
   }
 
-  public Map<String, Object> match(Map<String, Object> body) {
+  public Map<String, Object> saveFaqTree(Map<String, Object> tree) {
     return client
-        .post()
-        .uri("/v1/kb/match")
-        .body(body)
+        .put()
+        .uri("/admin/v1/faq/trees")
+        .body(tree)
         .retrieve()
         .body(new ParameterizedTypeReference<>() {});
   }
 
-  public Map<String, Object> ingest(Map<String, Object> body) {
+  public Map<String, Object> faqPreview(Map<String, Object> body) {
     return client
         .post()
-        .uri("/v1/kb/ingest")
+        .uri("/admin/v1/faq/preview")
         .body(body)
         .retrieve()
         .body(new ParameterizedTypeReference<>() {});

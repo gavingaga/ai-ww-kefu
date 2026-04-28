@@ -4,9 +4,14 @@
 
 ## 当前能力(MVP)
 
-- **KB 检索调试** (`/`):输入 query 与 vector_top / bm25_top / rrf_k / rerank_top 等参数,
+- **KB 检索调试**:输入 query 与 vector_top / bm25_top / rrf_k / rerank_top 等参数,
   实时看到向量召回、BM25 召回、RRF 融合、Rerank 综合分,以及最终回 ai-hub 的 hits。
   对应后端 `POST /v1/admin/kb/debug/search` → kb-svc `POST /v1/kb/debug/search`。
+- **KB 入库**:表单提交文档(id / kb_id / title / body / metadata) →
+  `POST /v1/admin/kb/ingest`。本地缓存最近 20 条入库流水。
+- **FAQ 节点管理**:列出所有 scene / 树 / 节点,可编辑 title / synonyms /
+  answer.contentMd,整树覆盖式 `PUT /v1/admin/faq/trees`;附 query 命中模拟器
+  `POST /v1/admin/faq/preview`。
 
 ## 开发
 

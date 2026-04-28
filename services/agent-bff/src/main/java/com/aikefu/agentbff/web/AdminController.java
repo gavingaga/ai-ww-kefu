@@ -1,14 +1,17 @@
 package com.aikefu.agentbff.web;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aikefu.agentbff.clients.KbClient;
+import com.aikefu.agentbff.clients.NotifyClient;
 
 /**
  * 管理后台 — 透传 kb-svc 等下游服务的只读 / 调试端点,避免前端直连。
@@ -20,10 +23,14 @@ import com.aikefu.agentbff.clients.KbClient;
 public class AdminController {
 
   private final KbClient kb;
+  private final NotifyClient notify;
 
-  public AdminController(KbClient kb) {
+  public AdminController(KbClient kb, NotifyClient notify) {
     this.kb = kb;
+    this.notify = notify;
   }
+
+  // ───── KB ─────
 
   @GetMapping("/kb/stats")
   public Map<String, Object> kbStats() {
@@ -38,5 +45,27 @@ public class AdminController {
   @PostMapping("/kb/match")
   public Map<String, Object> kbMatch(@RequestBody Map<String, Object> body) {
     return kb.match(body);
+  }
+
+  @PostMapping("/kb/ingest")
+  public Map<String, Object> kbIngest(@RequestBody Map<String, Object> body) {
+    return kb.ingest(body);
+  }
+
+  // ───── FAQ(管理) ─────
+
+  @GetMapping("/faq/trees")
+  public List<Map<String, Object>> faqTrees() {
+    return notify.faqTrees();
+  }
+
+  @PutMapping("/faq/trees")
+  public Map<String, Object> faqSaveTree(@RequestBody Map<String, Object> tree) {
+    return notify.saveFaqTree(tree);
+  }
+
+  @PostMapping("/faq/preview")
+  public Map<String, Object> faqPreview(@RequestBody Map<String, Object> body) {
+    return notify.faqPreview(body);
   }
 }
