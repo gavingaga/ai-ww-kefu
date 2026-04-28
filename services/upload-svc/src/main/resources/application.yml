@@ -1,0 +1,39 @@
+server:
+  port: ${UPLOAD_PORT:8088}
+  shutdown: graceful
+
+spring:
+  application:
+    name: upload-svc
+  jackson:
+    default-property-inclusion: non_null
+  servlet:
+    multipart:
+      enabled: false  # 直传 OSS,不走 svc 代理上传
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+
+aikefu:
+  upload:
+    # STS 凭证有效期(秒)
+    sts-ttl-seconds: ${UPLOAD_STS_TTL:600}
+    # 单文件最大字节(默认 50MB)
+    max-bytes: ${UPLOAD_MAX_BYTES:52428800}
+    # 允许的 MIME 白名单(逗号分隔)
+    allowed-types: >-
+      ${UPLOAD_ALLOWED_TYPES:
+        image/png,image/jpeg,image/webp,image/gif,
+        application/pdf,
+        text/plain,
+        video/mp4
+      }
+    # 病毒扫描 webhook 占位 — 空表示跳过
+    av-webhook: ${UPLOAD_AV_WEBHOOK:}
+    # 公开访问 base(mock 返回 URL 时拼接)
+    public-base: ${UPLOAD_PUBLIC_BASE:https://cdn.example.com/uploads}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

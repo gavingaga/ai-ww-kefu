@@ -14,7 +14,7 @@
        (写操作 dry_run + 二次确认通道)
 - [x] **T-225** tool-svc:`report_content` 留痕
 - [x] **T-226** tool-svc:`get_anchor_info`
-- [ ] **T-108** upload-svc:STS / 直传 / 病毒扫描钩子 / 白名单(支撑 T-401)
+- [x] **T-108** upload-svc:STS / 直传 / 病毒扫描钩子 / 白名单(支撑 T-401)
 - [ ] **T-401** web-c 图片 / 文件上传(直传 / 压缩 / 进度)
 - [ ] **T-405** web-c 满意度评价卡 + 撤回 + 重连
 - [ ] **T-114** web-admin 登录 + RBAC + 公告 / 快捷按钮 CRUD

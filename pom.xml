@@ -40,7 +40,8 @@
         <module>services/audit-svc</module>
         <module>services/livectx-svc</module>
         <module>services/tool-svc</module>
-        <!-- 后续:upload-svc / report-svc -->
+        <module>services/upload-svc</module>
+        <!-- 后续:report-svc -->
     </modules>
 
     <dependencyManagement>
