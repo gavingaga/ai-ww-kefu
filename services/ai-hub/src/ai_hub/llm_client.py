@@ -30,6 +30,47 @@ async def _inline_mock(messages: list[dict[str, Any]]) -> AsyncIterator[dict[str
     yield {"event": "done"}
 
 
+async def chat_once_full(
+    *,
+    base_url: str,
+    profile_id: str,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None = None,
+    extra_params: dict[str, Any] | None = None,
+    timeout_s: float = 30.0,
+) -> dict[str, Any]:
+    """非流式 — 透传 llm-router 的完整 OpenAI 响应(供 ToolLoop 用)。
+
+    LLM_INLINE_MOCK 时返回单条文本响应,无 tool_calls。
+    """
+    if _inline_mock_enabled():
+        last = next(
+            (m["content"] for m in reversed(messages) if m.get("role") == "user"), "(空)"
+        )
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": f"(inline-mock) {last}",
+                    },
+                    "finish_reason": "stop",
+                }
+            ]
+        }
+    body: dict[str, Any] = {"messages": messages, "stream": False, **(extra_params or {})}
+    if tools:
+        body["tools"] = tools
+    headers = {"X-Profile-Id": profile_id, "Content-Type": "application/json"}
+    url = base_url.rstrip("/") + "/v1/chat/completions"
+    timeout = httpx.Timeout(connect=5.0, read=timeout_s, write=5.0, pool=5.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(url, headers=headers, json=body)
+        if resp.status_code // 100 != 2:
+            raise RuntimeError(f"llm-router {resp.status_code}: {resp.text[:300]}")
+        return resp.json()
+
+
 async def chat_stream(
     *,
     base_url: str,

@@ -26,8 +26,11 @@ from pydantic import BaseModel, Field
 
 from .decision import decide
 from .faq_client import FaqClient
-from .llm_client import chat_stream
+from .llm_client import chat_once_full, chat_stream
 from .prompt import build_messages, render_with_meta
+from .tool_loop import run_tool_loop
+from .tools import ToolRegistry, default_registry
+from .tools.registry import ToolContext
 
 logger = logging.getLogger(__name__)
 
@@ -41,19 +44,28 @@ class InferRequest(BaseModel):
     profile: dict[str, Any] = Field(default_factory=dict)
     live_context: dict[str, Any] = Field(default_factory=dict)
     summary: str = ""
-    tools: list[dict[str, Any]] | None = None
+    tools: list[str] | None = None
+    """允许 LLM 选用的工具名白名单。为空则不启用工具循环;``[]`` 显式禁用。"""
     profile_id: str = "openai_default"
     stream: bool = True
     prompt_version: int | None = None
     """显式指定 prompt 模板版本(同 scene 下);为空取最高版本。"""
+    dry_run: bool = True
+    """写操作工具是否走 dry_run。默认 true;由用户/坐席二次确认后由 BFF 改 false 重跑。"""
 
 
-def create_app(*, faq_client: FaqClient | None = None) -> FastAPI:
-    app = FastAPI(title="ai-kefu ai-hub", version="0.2.0")
+def create_app(
+    *,
+    faq_client: FaqClient | None = None,
+    tool_registry: ToolRegistry | None = None,
+) -> FastAPI:
+    app = FastAPI(title="ai-kefu ai-hub", version="0.3.0")
 
     llm_router_base = os.getenv("LLM_ROUTER_URL", "http://localhost:8090")
     notify_base = os.getenv("NOTIFY_SVC_URL", "http://localhost:8082")
     fc = faq_client if faq_client is not None else FaqClient(notify_base)
+    tools = tool_registry if tool_registry is not None else default_registry()
+    max_tool_depth = int(os.getenv("AI_HUB_TOOL_MAX_DEPTH", "3"))
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -115,12 +127,106 @@ def create_app(*, faq_client: FaqClient | None = None) -> FastAPI:
                 yield _sse({"event": "done", "tokens_out": 0})
                 return
 
-            # ③ LLM_GENERAL
+            # ③ LLM_GENERAL — 可选 ToolLoop → 最终流式
             yield _sse(_decision_event(decision))
+
+            tool_results_summary: dict[str, Any] = {}
+            tool_events_log: list[dict[str, Any]] = []
+
+            # 工具循环(仅当 tools 白名单非 None;空列表 = 显式禁用)
+            if req.tools:
+                # 先用一份"无工具结果"的 system 渲染做循环底盘
+                sys_text_first, _ = render_with_meta(
+                    profile=req.profile,
+                    live_context=req.live_context,
+                    summary=req.summary,
+                    version=req.prompt_version,
+                )
+                base_messages = build_messages(
+                    user_text=req.user_text,
+                    history=req.history,
+                    system_text=sys_text_first,
+                )
+
+                async def _llm_call(
+                    msgs: list[dict[str, Any]], tools_schema: list[dict[str, Any]] | None
+                ) -> dict[str, Any]:
+                    return await chat_once_full(
+                        base_url=llm_router_base,
+                        profile_id=req.profile_id,
+                        messages=msgs,
+                        tools=tools_schema,
+                    )
+
+                ctx = ToolContext(
+                    session_id=req.session_id,
+                    user_profile=req.profile,
+                    live_context=req.live_context,
+                    dry_run=req.dry_run,
+                )
+                try:
+                    loop = await run_tool_loop(
+                        llm_call=_llm_call,
+                        registry=tools,
+                        base_messages=base_messages,
+                        ctx=ctx,
+                        tool_names=req.tools,
+                        max_depth=max_tool_depth,
+                    )
+                except Exception as e:  # noqa: BLE001
+                    logger.exception("tool loop failed")
+                    yield _sse({"event": "error", "message": f"tool loop: {str(e)[:300]}"})
+                    return
+
+                for ev in loop.events:
+                    rec = {
+                        "event": "tool_call",
+                        "name": ev.name,
+                        "args": ev.args,
+                        "ok": ev.ok,
+                        "error": ev.error,
+                        "result": ev.result if ev.ok else None,
+                    }
+                    yield _sse(rec)
+                    tool_events_log.append(rec)
+
+                tool_results_summary = loop.tool_results_summary
+
+                # 若循环已经给到最终文本(无 tool_calls 的最后一轮),直接以 token 形式推出
+                if loop.final_text:
+                    sys_text, tmpl = render_with_meta(
+                        profile=req.profile,
+                        live_context=req.live_context,
+                        summary=req.summary,
+                        tool_results=tool_results_summary,
+                        version=req.prompt_version,
+                    )
+                    yield _sse(
+                        {
+                            "event": "prompt_template",
+                            "id": tmpl.id,
+                            "scene": tmpl.scene,
+                            "version": tmpl.version,
+                            "title": tmpl.title,
+                        }
+                    )
+                    yield _sse({"event": "token", "text": loop.final_text})
+                    yield _sse(
+                        {
+                            "event": "done",
+                            "tokens_out": len(loop.final_text),
+                            "prompt": tmpl.id,
+                            "tool_rounds": loop.rounds,
+                        }
+                    )
+                    return
+
+            # 默认路径(或 ToolLoop 没产出最终文本):重新拼 prompt + 流式输出
             sys_text, tmpl = render_with_meta(
                 profile=req.profile,
                 live_context=req.live_context,
                 summary=req.summary,
+                tool_results=tool_results_summary,
                 version=req.prompt_version,
             )
             yield _sse(
@@ -143,10 +249,17 @@ def create_app(*, faq_client: FaqClient | None = None) -> FastAPI:
                     base_url=llm_router_base,
                     profile_id=req.profile_id,
                     messages=messages,
-                    tools=req.tools,
+                    tools=None,  # 工具已在 ToolLoop 阶段处理完;最终流式不再带 tools
                 ):
                     if chunk.get("event") == "done":
-                        yield _sse({"event": "done", "tokens_out": tokens_out, "prompt": tmpl.id})
+                        yield _sse(
+                            {
+                                "event": "done",
+                                "tokens_out": tokens_out,
+                                "prompt": tmpl.id,
+                                "tool_rounds": len(tool_events_log),
+                            }
+                        )
                         return
                     if "error" in chunk:
                         yield _sse({"event": "error", "message": str(chunk["error"])[:300]})
@@ -157,7 +270,14 @@ def create_app(*, faq_client: FaqClient | None = None) -> FastAPI:
                     if delta:
                         tokens_out += len(delta)
                         yield _sse({"event": "token", "text": delta})
-                yield _sse({"event": "done", "tokens_out": tokens_out, "prompt": tmpl.id})
+                yield _sse(
+                    {
+                        "event": "done",
+                        "tokens_out": tokens_out,
+                        "prompt": tmpl.id,
+                        "tool_rounds": len(tool_events_log),
+                    }
+                )
             except Exception as e:  # noqa: BLE001
                 logger.exception("ai-hub infer failed")
                 yield _sse({"event": "error", "message": str(e)[:300]})

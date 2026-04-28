@@ -82,15 +82,8 @@ def create_app(registry: ProfileRegistry | None = None) -> FastAPI:
         extra: dict[str, Any] = {k: v for k, v in body.items() if k not in {"messages", "tools", "stream"}}
 
         if not stream:
-            text = await router.once(profile_id, messages)
-            return JSONResponse(
-                {
-                    "id": "cmpl-once",
-                    "object": "chat.completion",
-                    "choices": [{"index": 0, "message": {"role": "assistant", "content": text}}],
-                    "_profile_id": profile_id,
-                }
-            )
+            data = await router.once_full(profile_id, messages, tools=tools, extra_params=extra)
+            return JSONResponse(data)
 
         async def gen() -> AsyncIterator[bytes]:
             try:

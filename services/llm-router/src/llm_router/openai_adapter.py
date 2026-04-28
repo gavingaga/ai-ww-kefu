@@ -99,11 +99,33 @@ async def chat_once(
     extra_params: dict[str, Any] | None = None,
 ) -> str:
     """非流式调用,返回单条文本(供测试连接 / 试聊)。"""
+    data = await chat_once_full(profile, messages, extra_params=extra_params)
+    return data["choices"][0]["message"].get("content") or ""
+
+
+async def chat_once_full(
+    profile: ModelProfile,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None = None,
+    extra_params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """非流式调用,返回完整 OpenAI 响应(包含 tool_calls)。"""
     if _is_mock_mode():
         text = ""
         async for c in _mock_stream(messages):
             text += c.get("choices", [{}])[0].get("delta", {}).get("content", "")
-        return text or "(mock) ok"
+        return {
+            "id": "cmpl-mock",
+            "object": "chat.completion",
+            "model": profile.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": text or "(mock) ok"},
+                    "finish_reason": "stop",
+                }
+            ],
+        }
 
     body: dict[str, Any] = {
         "model": profile.model,
@@ -112,6 +134,8 @@ async def chat_once(
         **profile.params,
         **(extra_params or {}),
     }
+    if tools:
+        body["tools"] = tools
     headers = {"Authorization": f"Bearer {profile.api_key}", "Content-Type": "application/json"}
     timeout = httpx.Timeout(connect=5.0, read=profile.timeout_ms / 1000, write=5.0, pool=5.0)
     url = profile.base_url.rstrip("/") + "/chat/completions"
@@ -119,8 +143,7 @@ async def chat_once(
         resp = await client.post(url, headers=headers, json=body)
         if resp.status_code // 100 != 2:
             raise LLMError(resp.status_code, resp.text)
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        return resp.json()
 
 
 async def _mock_stream(messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
