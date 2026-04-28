@@ -26,7 +26,9 @@ public class FaqNode {
   private String title;
   private String icon;
   @Builder.Default private int sortOrder = 0;
-  @Builder.Default private boolean isLeaf = false;
+  @com.fasterxml.jackson.annotation.JsonProperty("isLeaf")
+  @Builder.Default
+  private boolean isLeaf = false;
 
   /** 同义问列表(命中相似匹配时用)。 */
   @Builder.Default private List<String> synonyms = new ArrayList<>();

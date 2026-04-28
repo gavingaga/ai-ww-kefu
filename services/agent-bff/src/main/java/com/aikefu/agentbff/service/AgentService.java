@@ -26,6 +26,7 @@ public class AgentService {
   @org.springframework.beans.factory.annotation.Autowired(required = false)
   private AiHubClient aiHub;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public AgentService(
       RoutingClient routing,
       SessionClient session,

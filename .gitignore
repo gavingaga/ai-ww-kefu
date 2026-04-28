@@ -8,6 +8,10 @@ target/
 .gradle/
 .mvn/wrapper/maven-wrapper.jar
 
+# 本地启动产物
+.runtime/
+uv.lock
+
 # Build output
 dist/
 build/

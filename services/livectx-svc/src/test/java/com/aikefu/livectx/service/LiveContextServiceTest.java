@@ -21,7 +21,9 @@ class LiveContextServiceTest {
     assertThat(out).containsEntry("scene", "live_room").containsEntry("room_id", 8001L);
     assertThat(out).containsKey("anchor_id"); // 服务端权威字段必有
     assertThat(out).containsKey("program_title");
-    assertThat(((Map<?, ?>) out.get("play"))).containsKey("cdn_node");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> play = (Map<String, Object>) out.get("play");
+    assertThat(play).containsKey("cdn_node");
   }
 
   @Test
