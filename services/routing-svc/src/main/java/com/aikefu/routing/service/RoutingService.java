@@ -216,6 +216,18 @@ public class RoutingService {
     return out;
   }
 
+  /** 列出当前承接(active)该会话的坐席 ID — 通常 ≤ 1 个;无则返回空集合。 */
+  public java.util.Set<Long> activeAgentsOf(String sessionId) {
+    java.util.Set<Long> out = new LinkedHashSet<>();
+    if (sessionId == null || sessionId.isBlank()) return out;
+    for (Agent a : agents.all()) {
+      if (a.getActiveSessionIds() != null && a.getActiveSessionIds().contains(sessionId)) {
+        out.add(a.getId());
+      }
+    }
+    return out;
+  }
+
   public List<Agent> listSupervisors() {
     return agents.all().stream()
         .filter(a -> a.getRole() == com.aikefu.routing.domain.AgentRole.SUPERVISOR)

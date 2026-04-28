@@ -171,6 +171,15 @@ public class RoutingController {
     return Map.of("session_id", sessionId, "observers", svc.observersOf(sessionId));
   }
 
+  /** 反查会话相关坐席:active(承接的)+ observers(观察的主管)。 */
+  @GetMapping("/sessions/{sessionId}/agents")
+  public Map<String, Object> sessionAgents(@PathVariable("sessionId") String sessionId) {
+    return Map.of(
+        "session_id", sessionId,
+        "active", svc.activeAgentsOf(sessionId),
+        "observers", svc.observersOf(sessionId));
+  }
+
   @GetMapping("/supervisors")
   public List<Agent> supervisors() {
     return svc.listSupervisors();
