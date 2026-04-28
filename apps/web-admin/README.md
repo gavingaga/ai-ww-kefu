@@ -4,6 +4,9 @@
 
 ## 当前能力(MVP)
 
+- **运营看板**:KPI 卡(队列总数 / VIP / 未成年 / 超时 / 最长等待 / 坐席状态分布 /
+  负载比 / 主管 / 策略)+ 按技能组分布 + 坐席表 + 排队表;5 秒自动刷新。
+  对应 `GET /v1/admin/dashboard` → routing-svc `GET /v1/dashboard`。
 - **KB 检索调试**:输入 query 与 vector_top / bm25_top / rrf_k / rerank_top 等参数,
   实时看到向量召回、BM25 召回、RRF 融合、Rerank 综合分,以及最终回 ai-hub 的 hits。
   对应后端 `POST /v1/admin/kb/debug/search` → kb-svc `POST /v1/kb/debug/search`。

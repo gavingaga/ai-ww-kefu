@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.aikefu.agentbff.clients.KbClient;
 import com.aikefu.agentbff.clients.NotifyClient;
+import com.aikefu.agentbff.clients.RoutingClient;
 
 /**
  * 管理后台 — 透传 kb-svc 等下游服务的只读 / 调试端点,避免前端直连。
@@ -24,10 +25,24 @@ public class AdminController {
 
   private final KbClient kb;
   private final NotifyClient notify;
+  private final RoutingClient routing;
 
-  public AdminController(KbClient kb, NotifyClient notify) {
+  public AdminController(KbClient kb, NotifyClient notify, RoutingClient routing) {
     this.kb = kb;
     this.notify = notify;
+    this.routing = routing;
+  }
+
+  // ───── 运营看板 ─────
+
+  @GetMapping("/dashboard")
+  public Map<String, Object> dashboard() {
+    return routing.dashboard();
+  }
+
+  @GetMapping("/stats")
+  public Map<String, Object> stats() {
+    return routing.stats();
   }
 
   // ───── KB ─────

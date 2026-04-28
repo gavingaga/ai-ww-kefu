@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import com.aikefu.agentbff.clients.KbClient;
 import com.aikefu.agentbff.clients.NotifyClient;
+import com.aikefu.agentbff.clients.RoutingClient;
 
 class AdminControllerTest {
 
@@ -31,7 +32,7 @@ class AdminControllerTest {
             "hits", List.of());
     when(kb.debugSearch(any())).thenReturn(stub);
 
-    AdminController c = new AdminController(kb, notify);
+    AdminController c = new AdminController(kb, notify, mock(RoutingClient.class));
     Map<String, Object> body =
         Map.of("query", "卡顿", "top_k", 3, "vector_top", 20, "bm25_top", 20);
     Map<String, Object> resp = c.kbDebugSearch(body);
@@ -46,7 +47,7 @@ class AdminControllerTest {
     KbClient kb = mock(KbClient.class);
     NotifyClient notify = mock(NotifyClient.class);
     when(kb.stats()).thenReturn(Map.of("chunks", 12, "embedder", "HashEmbedder"));
-    AdminController c = new AdminController(kb, notify);
+    AdminController c = new AdminController(kb, notify, mock(RoutingClient.class));
     Map<String, Object> r = c.kbStats();
     assertThat(r.get("chunks")).isEqualTo(12);
   }
@@ -58,10 +59,23 @@ class AdminControllerTest {
     Map<String, Object> body =
         Map.of("id", "doc_x", "kb_id", "default", "title", "T", "body", "B");
     when(kb.ingest(any())).thenReturn(Map.of("ok", true, "chunks", 3, "doc_id", "doc_x"));
-    AdminController c = new AdminController(kb, notify);
+    AdminController c = new AdminController(kb, notify, mock(RoutingClient.class));
     Map<String, Object> r = c.kbIngest(body);
     assertThat(r.get("ok")).isEqualTo(true);
     verify(kb).ingest(body);
+  }
+
+  @Test
+  void dashboardDelegatesToRoutingClient() {
+    KbClient kb = mock(KbClient.class);
+    NotifyClient notify = mock(NotifyClient.class);
+    RoutingClient routing = mock(RoutingClient.class);
+    when(routing.dashboard())
+        .thenReturn(Map.of("kpi", Map.of("queue_total", 3), "agents", List.of(), "queue", List.of()));
+    AdminController c = new AdminController(kb, notify, routing);
+    Map<String, Object> r = c.dashboard();
+    assertThat(r).containsKey("kpi");
+    verify(routing).dashboard();
   }
 
   @Test
@@ -70,7 +84,7 @@ class AdminControllerTest {
     NotifyClient notify = mock(NotifyClient.class);
     when(notify.faqTrees()).thenReturn(List.of(Map.of("scene", "play")));
     when(notify.faqPreview(any())).thenReturn(Map.of("hit", true, "node_id", "n1"));
-    AdminController c = new AdminController(kb, notify);
+    AdminController c = new AdminController(kb, notify, mock(RoutingClient.class));
 
     assertThat(c.faqTrees()).hasSize(1);
     Map<String, Object> p = c.faqPreview(Map.of("query", "看视频卡顿"));

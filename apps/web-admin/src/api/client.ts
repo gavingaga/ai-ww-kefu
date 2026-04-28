@@ -1,4 +1,5 @@
 import type {
+  DashboardData,
   FaqPreviewResult,
   FaqTree,
   KbDebugResponse,
@@ -82,4 +83,10 @@ export function faqSaveTree(tree: FaqTree): Promise<FaqTree> {
 
 export function faqPreview(query: string): Promise<FaqPreviewResult> {
   return postJSON<FaqPreviewResult>("/v1/admin/faq/preview", { query });
+}
+
+// ───── Dashboard ─────
+
+export function dashboard(): Promise<DashboardData> {
+  return getJSON<DashboardData>("/v1/admin/dashboard");
 }
