@@ -41,6 +41,8 @@ const (
 	TypeEventLiveSnapshot   = "event.live_snapshot"
 	TypeEventPlayDiagnostic = "event.play_diagnostic"
 	TypeEventBridgeCall     = "event.bridge_call"
+	TypeEventToolCall       = "event.tool_call"
+	TypeEventHandoffPacket  = "event.handoff_packet"
 )
 
 // Frame 通用帧。

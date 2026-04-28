@@ -82,7 +82,28 @@ export function App() {
         ]);
         return;
       }
-      // 3) 流式结束 — 占位思考气泡转正常(若仍为空,显示提示)
+      // 3) 工具调用结果(AI 触发,UI 展示一个胶囊)
+      if (f.type === "event.tool_call") {
+        const p = f.payload ?? {};
+        setMessages((prev) => [
+          ...prev,
+          {
+            kind: "tool",
+            id: `tool-${f.seq ?? Date.now()}`,
+            role: "ai",
+            ts: f.ts ?? Date.now(),
+            tool: {
+              name: String(p.name ?? ""),
+              args: (p.args as Record<string, unknown>) ?? undefined,
+              ok: Boolean(p.ok),
+              result: p.result,
+              error: typeof p.error === "string" ? p.error : undefined,
+            },
+          },
+        ]);
+        return;
+      }
+      // 4) 流式结束 — 占位思考气泡转正常(若仍为空,显示提示)
       if (f.type === "msg.chunk" && f.payload?.end) {
         setMessages((prev) =>
           prev.map((m) =>

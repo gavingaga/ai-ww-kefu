@@ -102,6 +102,35 @@ func (r *AI) streamReply(ctx context.Context, conn *wsconn.Conn, sid, refMsgID, 
 				MsgID:     refMsgID,
 				Payload:   body,
 			})
+		case "tool_call":
+			// 工具调用结果以 event.tool_call 推回客户端,UI 渲染为"AI 正在调用工具"提示
+			payload := map[string]interface{}{
+				"name": ev.Name,
+				"args": ev.Args,
+			}
+			if ev.OK != nil {
+				payload["ok"] = *ev.OK
+			}
+			if ev.Result != nil {
+				payload["result"] = ev.Result
+			}
+			if ev.ErrorDetail != "" {
+				payload["error"] = ev.ErrorDetail
+			}
+			body, _ := json.Marshal(payload)
+			conn.SendFrame(frame.Frame{
+				Type:      frame.TypeEventToolCall,
+				SessionID: sid,
+				Payload:   body,
+			})
+		case "handoff_packet":
+			// 转人工接力包 — M3 座席台直连消费,这里同时透传给 C 端用于本地 UI 状态
+			body, _ := json.Marshal(ev.Raw)
+			conn.SendFrame(frame.Frame{
+				Type:      frame.TypeEventHandoffPacket,
+				SessionID: sid,
+				Payload:   body,
+			})
 		case "handoff":
 			// 转人工系统消息
 			body, _ := json.Marshal(map[string]interface{}{

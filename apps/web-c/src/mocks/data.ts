@@ -68,6 +68,17 @@ export interface FaqMessageContent {
   answer: FaqAnswer;
 }
 
+export interface ToolCallContent {
+  /** 工具名,如 get_play_diagnostics */
+  name: string;
+  args?: Record<string, unknown>;
+  ok: boolean;
+  result?: unknown;
+  error?: string;
+  /** 友好的人类可读名(由前端基于 name 翻译) */
+  label?: string;
+}
+
 export type Message =
   | {
       kind: "text";
@@ -83,6 +94,13 @@ export type Message =
       role: "ai";
       ts: number;
       faq: FaqMessageContent;
+    }
+  | {
+      kind: "tool";
+      id: string;
+      role: "ai";
+      ts: number;
+      tool: ToolCallContent;
     };
 
 export const initialMessages: Message[] = [

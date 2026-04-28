@@ -4,6 +4,7 @@ import { Avatar, Bubble } from "@ai-kefu/ui-glass";
 
 import type { Message } from "../mocks/data.js";
 import { FaqAnswerCard } from "./FaqAnswerCard.js";
+import { ToolCallBadge } from "./ToolCallBadge.js";
 
 export interface MessageListProps {
   items: Message[];
@@ -65,6 +66,9 @@ function Row({
         onOpenLink={onOpenLink}
       />
     );
+  }
+  if (m.kind === "tool") {
+    return <ToolCallBadge tool={m.tool} />;
   }
   if (m.role === "system") {
     return <Bubble role="system">{m.text}</Bubble>;

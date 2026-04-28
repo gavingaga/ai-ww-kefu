@@ -27,7 +27,9 @@
         "event.faq_card",
         "event.live_snapshot",
         "event.play_diagnostic",
-        "event.bridge_call"
+        "event.bridge_call",
+        "event.tool_call",
+        "event.handoff_packet"
       ]
     },
     "seq": { "type": "integer", "minimum": 0 },
@@ -217,6 +219,52 @@
               },
               "args": { "type": "object", "additionalProperties": true },
               "require_confirm": { "type": "boolean", "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "event.tool_call" } }, "required": ["type"] },
+      "then": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["name", "ok"],
+            "properties": {
+              "name": { "type": "string", "description": "工具名,如 get_play_diagnostics" },
+              "args": { "type": "object", "additionalProperties": true },
+              "ok": { "type": "boolean", "description": "执行是否成功" },
+              "result": { "description": "成功时的返回结构(json)" },
+              "error": { "type": "string", "description": "失败时的简化错误信息" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "event.handoff_packet" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["session_id", "reason", "summary"],
+            "properties": {
+              "session_id": { "type": "string" },
+              "reason": { "type": "string" },
+              "summary": { "type": "string" },
+              "user": { "type": "object", "additionalProperties": true },
+              "history": { "type": "array", "items": { "type": "object" } },
+              "entities": { "type": "object", "additionalProperties": true },
+              "suggested_replies": { "type": "array", "items": { "type": "string" } },
+              "knowledge_hits": { "type": "array", "items": { "type": "object" } },
+              "live_context": { "type": "object", "additionalProperties": true },
+              "skill_group_hint": { "type": "string" }
             }
           }
         }

@@ -108,6 +108,43 @@ func TestInferStreamFAQEvent(t *testing.T) {
 	}
 }
 
+func TestInferStreamToolCallEvent(t *testing.T) {
+	srv := sseServer([]string{
+		`{"event":"decision","action":"llm_general"}`,
+		`{"event":"tool_call","name":"get_play_diagnostics","ok":true,"args":{"room_id":8001},"result":{"verdict":"local_network"}}`,
+		`{"event":"token","text":"建议切到 480p"}`,
+		`{"event":"done"}`,
+	})
+	defer srv.Close()
+	c := New(srv.URL)
+	var tc *Event
+	err := c.InferStream(context.Background(),
+		InferRequest{SessionID: "s", UserText: "卡顿"},
+		func(ev Event) error {
+			if ev.Event == "tool_call" {
+				e := ev
+				tc = &e
+			}
+			return nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tc == nil {
+		t.Fatal("expected tool_call event")
+	}
+	if tc.Name != "get_play_diagnostics" {
+		t.Fatalf("name=%q", tc.Name)
+	}
+	if tc.OK == nil || !*tc.OK {
+		t.Fatalf("ok=%v", tc.OK)
+	}
+	r, ok := tc.Result.(map[string]interface{})
+	if !ok || r["verdict"] != "local_network" {
+		t.Fatalf("result=%v", tc.Result)
+	}
+}
+
 func TestInferStreamHTTPError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(503)

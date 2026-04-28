@@ -64,6 +64,13 @@ type Event struct {
 	Score  float64                `json:"score,omitempty"`
 	How    string                 `json:"how,omitempty"`
 
+	// 工具调用字段(event="tool_call" 时填充)
+	Name        string                 `json:"name,omitempty"`
+	Args        map[string]interface{} `json:"args,omitempty"`
+	OK          *bool                  `json:"ok,omitempty"`
+	Result      interface{}            `json:"result,omitempty"`
+	ErrorDetail string                 `json:"error,omitempty"`
+
 	Raw map[string]interface{} `json:"-"`
 }
 
