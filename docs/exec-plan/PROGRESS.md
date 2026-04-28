@@ -21,8 +21,8 @@
 
 ## 优先级 P1(数据底座 + 运营观测)
 
-- [ ] **T-501** report-svc 起步(事件入湖 + 简化大屏 KPI)
-- [ ] **T-502** web-admin 报表看板(AI / 业务 / 坐席绩效)
+- [x] **T-501** report-svc(POST /v1/events + 6 聚合 kpi/csat/tools/agents/handoff/timeseries;Auditor 自动镜像)
+- [x] **T-502** web-admin 报表看板(KPI / CSAT 分布 / 转人工原因 / 工具 TopN / 坐席排行,5s 刷新)
 - [ ] **T-310** web-agent 实时大屏故障 TopN / 赛事预警
 - [ ] **T-307** web-agent ContextPanel 完整 8 Tab
 - [ ] **T-308** web-agent AI 建议回复独立面板

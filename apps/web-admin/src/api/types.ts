@@ -215,3 +215,16 @@ export interface QuickReplyRow {
   icon?: string;
   active?: boolean;
 }
+
+// ───── 报表 ─────
+
+export interface ReportKpi {
+  window_min: number;
+  session_accept: number;
+  session_close: number;
+  session_handoff: number;
+  tool_invocations: number;
+  csat_count: number;
+  csat_avg: number;
+  handoff_rate: number;
+}

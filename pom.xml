@@ -41,7 +41,7 @@
         <module>services/livectx-svc</module>
         <module>services/tool-svc</module>
         <module>services/upload-svc</module>
-        <!-- 后续:report-svc -->
+        <module>services/report-svc</module>
     </modules>
 
     <dependencyManagement>

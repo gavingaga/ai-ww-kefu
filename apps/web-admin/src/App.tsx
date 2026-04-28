@@ -9,8 +9,9 @@ import { KbDebugPanel } from "./components/KbDebugPanel.js";
 import { KbIngestPanel } from "./components/KbIngestPanel.js";
 import { LoginGate } from "./components/LoginGate.js";
 import { NoticesPanel } from "./components/NoticesPanel.js";
+import { ReportsPanel } from "./components/ReportsPanel.js";
 
-type Page = "dashboard" | "audit" | "notices" | "kb-debug" | "kb-ingest" | "faq";
+type Page = "dashboard" | "reports" | "audit" | "notices" | "kb-debug" | "kb-ingest" | "faq";
 
 interface NavItem {
   key: Page;
@@ -22,6 +23,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { key: "dashboard", label: "运营看板", hint: "队列 / 坐席 / 负载实时态", minRole: "AGENT" },
+  { key: "reports", label: "运营报表", hint: "KPI / CSAT / 工具 / 坐席 / 转人工", minRole: "SUPERVISOR" },
   { key: "audit", label: "审计流水", hint: "主管干预 / 坐席动作记录", minRole: "SUPERVISOR" },
   { key: "notices", label: "公告 / 快捷按钮", hint: "运营 CRUD", minRole: "ADMIN" },
   { key: "kb-debug", label: "KB 检索调试", hint: "向量 / BM25 / RRF / Rerank 调参", minRole: "ADMIN" },
@@ -112,6 +114,7 @@ export function App() {
       </aside>
       <main style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         {currentPage === "dashboard" ? <DashboardPanel /> : null}
+        {currentPage === "reports" ? <ReportsPanel /> : null}
         {currentPage === "audit" ? <AuditPanel /> : null}
         {currentPage === "notices" ? <NoticesPanel /> : null}
         {currentPage === "kb-debug" ? <KbDebugPanel /> : null}

@@ -135,6 +135,21 @@ export async function deleteQuickReply(id: string): Promise<void> {
   await fetch("/v1/admin/quick-replies/" + encodeURIComponent(id), { method: "DELETE" });
 }
 
+// ───── 报表 ─────
+
+export function report(
+  kind: string,
+  windowMin = 60,
+  bucketSec?: number,
+): Promise<Record<string, unknown>> {
+  const qs = new URLSearchParams();
+  qs.set("window_min", String(windowMin));
+  if (bucketSec) qs.set("bucket_sec", String(bucketSec));
+  return getJSON<Record<string, unknown>>(
+    `/v1/admin/report/${encodeURIComponent(kind)}?${qs.toString()}`,
+  );
+}
+
 export function auditQuery(q: AuditQueryInput): Promise<AuditQueryResponse> {
   const params = new URLSearchParams();
   if (q.kind) params.set("kind", q.kind);

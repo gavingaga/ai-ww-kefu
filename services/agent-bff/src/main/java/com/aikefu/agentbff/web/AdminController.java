@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.aikefu.agentbff.clients.AuditClient;
 import com.aikefu.agentbff.clients.KbClient;
 import com.aikefu.agentbff.clients.NotifyClient;
+import com.aikefu.agentbff.clients.ReportClient;
 import com.aikefu.agentbff.clients.RoutingClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,13 +33,19 @@ public class AdminController {
   private final NotifyClient notify;
   private final RoutingClient routing;
   private final AuditClient audit;
+  private final ReportClient report;
 
   public AdminController(
-      KbClient kb, NotifyClient notify, RoutingClient routing, AuditClient audit) {
+      KbClient kb,
+      NotifyClient notify,
+      RoutingClient routing,
+      AuditClient audit,
+      ReportClient report) {
     this.kb = kb;
     this.notify = notify;
     this.routing = routing;
     this.audit = audit;
+    this.report = report;
   }
 
   // ───── 运营看板 ─────
@@ -151,6 +158,16 @@ public class AdminController {
   public ResponseEntity<Void> deleteQuickReply(@PathVariable("id") String id) {
     notify.deleteQuickReply(id);
     return ResponseEntity.noContent().build();
+  }
+
+  // ───── 报表 ─────
+
+  @GetMapping("/report/{kind}")
+  public Map<String, Object> reportEndpoint(
+      @PathVariable("kind") String kind,
+      @RequestParam(value = "window_min", defaultValue = "60") int windowMin,
+      @RequestParam(value = "bucket_sec", required = false) Integer bucketSec) {
+    return report.report(kind, windowMin, bucketSec);
   }
 
   // ───── 审计 ─────

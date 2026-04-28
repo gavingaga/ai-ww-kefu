@@ -1,0 +1,23 @@
+server:
+  port: ${REPORT_PORT:8089}
+  shutdown: graceful
+
+spring:
+  application:
+    name: report-svc
+  jackson:
+    default-property-inclusion: non_null
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+
+aikefu:
+  report:
+    buffer-size: ${REPORT_BUFFER_SIZE:50000}
+    # 默认聚合窗口(分钟)
+    default-window-min: ${REPORT_WINDOW_MIN:60}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
