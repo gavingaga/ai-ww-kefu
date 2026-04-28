@@ -1,14 +1,26 @@
 import { GlassCard } from "@ai-kefu/ui-glass";
 
-import type { HandoffPacket } from "../api/types.js";
+import type { AgentInfo, HandoffPacket } from "../api/types.js";
+import { SupervisorActions } from "./SupervisorActions.js";
 
 export interface ContextPanelProps {
   packet: HandoffPacket | null;
   liveContext: Record<string, unknown> | null;
+  agent: AgentInfo | null;
+  fromAgentId: number;
+  sessionId: string | null;
+  onAfterAction: () => void;
 }
 
-/** 右侧上下文栏 — Handoff Packet + 直播 / 点播 业务上下文。 */
-export function ContextPanel({ packet, liveContext }: ContextPanelProps) {
+/** 右侧上下文栏 — Handoff Packet + 直播 / 点播 业务上下文 + 主管干预。 */
+export function ContextPanel({
+  packet,
+  liveContext,
+  agent,
+  fromAgentId,
+  sessionId,
+  onAfterAction,
+}: ContextPanelProps) {
   return (
     <GlassCard
       strength="base"
@@ -27,12 +39,19 @@ export function ContextPanel({ packet, liveContext }: ContextPanelProps) {
       </Section>
 
       <Section title="直播 / 点播 上下文">
-        {liveContext ? (
-          <KV obj={liveContext} />
-        ) : (
-          <Empty text="无 live_context 信息" />
-        )}
+        {liveContext ? <KV obj={liveContext} /> : <Empty text="无 live_context 信息" />}
       </Section>
+
+      {sessionId ? (
+        <Section title="协作">
+          <SupervisorActions
+            agent={agent}
+            fromAgentId={fromAgentId}
+            sessionId={sessionId}
+            onAfterAction={onAfterAction}
+          />
+        </Section>
+      ) : null}
     </GlassCard>
   );
 }

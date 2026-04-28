@@ -28,6 +28,7 @@ export async function register(body: {
   nickname?: string;
   skillGroups?: string[];
   maxConcurrency?: number;
+  role?: "AGENT" | "SUPERVISOR";
 }): Promise<AgentInfo> {
   const r = await fetch(`${BASE}/register`, {
     method: "POST",
@@ -109,4 +110,68 @@ export async function peek(agentId: number): Promise<QueueEntry | null> {
   const r = await fetch(`${BASE}/peek`, { method: "POST", headers: headers(agentId) });
   if (r.status === 204) return null;
   return jsonOr<QueueEntry>(r);
+}
+
+// ───── 主管干预(T-302) ─────
+
+export async function listSupervisors(): Promise<AgentInfo[]> {
+  const r = await fetch(`/v1/supervisor/list`);
+  return jsonOr<AgentInfo[]>(r);
+}
+
+export async function whisper(
+  supervisorId: number,
+  sessionId: string,
+  text: string,
+): Promise<unknown> {
+  const r = await fetch(`/v1/supervisor/whisper`, {
+    method: "POST",
+    headers: headers(supervisorId),
+    body: JSON.stringify({ session_id: sessionId, text }),
+  });
+  return jsonOr<unknown>(r);
+}
+
+export async function steal(
+  supervisorId: number,
+  fromAgentId: number,
+  sessionId: string,
+): Promise<unknown> {
+  const r = await fetch(`/v1/supervisor/steal`, {
+    method: "POST",
+    headers: headers(supervisorId),
+    body: JSON.stringify({ from_agent_id: fromAgentId, session_id: sessionId }),
+  });
+  return jsonOr<unknown>(r);
+}
+
+export async function transfer(
+  fromAgentId: number,
+  toAgentId: number,
+  sessionId: string,
+): Promise<unknown> {
+  const r = await fetch(`/v1/supervisor/transfer`, {
+    method: "POST",
+    headers: headers(fromAgentId),
+    body: JSON.stringify({ to_agent_id: toAgentId, session_id: sessionId }),
+  });
+  return jsonOr<unknown>(r);
+}
+
+export async function observe(supervisorId: number, sessionId: string): Promise<unknown> {
+  const r = await fetch(`/v1/supervisor/observe`, {
+    method: "POST",
+    headers: headers(supervisorId),
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  return jsonOr<unknown>(r);
+}
+
+export async function unobserve(supervisorId: number, sessionId: string): Promise<unknown> {
+  const r = await fetch(`/v1/supervisor/unobserve`, {
+    method: "POST",
+    headers: headers(supervisorId),
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  return jsonOr<unknown>(r);
 }

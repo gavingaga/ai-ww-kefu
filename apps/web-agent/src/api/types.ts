@@ -7,9 +7,12 @@ export interface AgentInfo {
   nickname?: string;
   avatarUrl?: string;
   status: AgentStatus;
+  /** 角色:AGENT(默认)/ SUPERVISOR(主管,可干预) */
+  role?: "AGENT" | "SUPERVISOR";
   skillGroups?: string[];
   maxConcurrency?: number;
   activeSessionIds?: string[];
+  observingSessionIds?: string[];
 }
 
 export interface QueueEntry {

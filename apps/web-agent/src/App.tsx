@@ -20,6 +20,7 @@ interface QueryConfig {
   agentId: number;
   nickname: string;
   skillGroups: string[];
+  role: "AGENT" | "SUPERVISOR";
 }
 
 function readQueryConfig(): QueryConfig {
@@ -29,7 +30,11 @@ function readQueryConfig(): QueryConfig {
   const skillGroups =
     url.searchParams.get("skill_groups")?.split(",").map((s) => s.trim()).filter(Boolean) ??
     ["general", "play_tech", "membership_payment"];
-  return { agentId, nickname, skillGroups };
+  const role =
+    (url.searchParams.get("role") ?? "AGENT").toUpperCase() === "SUPERVISOR"
+      ? "SUPERVISOR"
+      : "AGENT";
+  return { agentId, nickname, skillGroups, role };
 }
 
 export function App() {
@@ -54,6 +59,9 @@ export function App() {
   // 启动:注册 + 进入 IDLE + 拉一次 inbox + 启动轮询
   useEffect(() => {
     let cancelled = false;
+    let es: EventSource | null = null;
+    let fallbackTimer: ReturnType<typeof setInterval> | null = null;
+
     const init = async () => {
       try {
         const a = await register({
@@ -61,6 +69,7 @@ export function App() {
           nickname: cfg.nickname,
           skillGroups: cfg.skillGroups,
           maxConcurrency: 5,
+          role: cfg.role,
         });
         if (!cancelled) setAgent(a);
         const idle = await setStatus(cfg.agentId, "IDLE");
@@ -69,12 +78,29 @@ export function App() {
       } catch (err) {
         console.error("[init]", err);
       }
+
+      // 优先 SSE,失败自动降级到 8s 轮询
+      try {
+        es = new EventSource(`/v1/agent/events?agent_id=${cfg.agentId}`);
+        es.addEventListener("inbox-changed", () => void refresh());
+        es.addEventListener("hello", () => void refresh());
+        es.onerror = () => {
+          if (cancelled) return;
+          console.warn("[sse] error, fallback to polling 8s");
+          es?.close();
+          es = null;
+          if (!fallbackTimer) fallbackTimer = setInterval(refresh, 8000);
+        };
+      } catch (err) {
+        console.warn("[sse] not supported, polling instead", err);
+        fallbackTimer = setInterval(refresh, 8000);
+      }
     };
     init();
-    const t = setInterval(refresh, 3000);
     return () => {
       cancelled = true;
-      clearInterval(t);
+      if (es) es.close();
+      if (fallbackTimer) clearInterval(fallbackTimer);
     };
   }, [cfg.agentId, cfg.nickname, cfg.skillGroups, refresh]);
 
@@ -131,6 +157,12 @@ export function App() {
           liveContext={
             (selectedSession?.liveContext as Record<string, unknown> | undefined) ?? null
           }
+          agent={agent}
+          fromAgentId={cfg.agentId}
+          sessionId={selected}
+          onAfterAction={() => {
+            void refresh();
+          }}
         />
       </div>
     </div>
