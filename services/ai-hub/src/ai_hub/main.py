@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 
 from .decision import decide
 from .faq_client import FaqClient
+from .handoff import HandoffReason, build_handoff_packet
 from .llm_client import chat_once_full, chat_stream
 from .prompt import build_messages, render_with_meta
 from .tool_loop import run_tool_loop
@@ -79,12 +80,17 @@ def create_app(
             # ① 强制规则 → handoff(优先级最高,绕过 FAQ / LLM)
             if decision.action == "handoff":
                 yield _sse(_decision_event(decision))
+                packet = await _build_packet_for_handoff(
+                    req, decision.reason, decision.hits, llm_router_base
+                )
+                yield _sse({"event": "handoff_packet", **packet.to_dict()})
                 yield _sse(
                     {
                         "event": "handoff",
                         "reason": decision.reason,
                         "hits": decision.hits,
-                        "summary": "用户请求转人工或命中合规关键词,直接进入排队。",
+                        "summary": packet.summary,
+                        "skill_group_hint": packet.skill_group_hint,
                     }
                 )
                 yield _sse({"event": "done"})
@@ -285,6 +291,46 @@ def create_app(
         return StreamingResponse(gen(), media_type="text/event-stream")
 
     return app
+
+
+def _normalize_handoff_reason(raw: str, hits: list[str]) -> HandoffReason:
+    """决策器 reason → HandoffReason 枚举(细化未成年/举报)。"""
+    if any("未成年" in h for h in hits or []):
+        return "minor_compliance"
+    if any(h in {"举报", "版权"} for h in hits or []):
+        return "report_compliance"
+    if raw == "rule_keyword":
+        return "rule_keyword"
+    if raw == "user_request":
+        return "user_request"
+    return "rule_keyword"
+
+
+async def _build_packet_for_handoff(
+    req: "InferRequest",
+    raw_reason: str,
+    hits: list[str],
+    llm_router_base: str,
+):
+    reason = _normalize_handoff_reason(raw_reason, hits)
+
+    async def _llm_text(messages: list[dict[str, Any]]) -> str:
+        data = await chat_once_full(
+            base_url=llm_router_base,
+            profile_id=req.profile_id,
+            messages=messages,
+        )
+        return (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+
+    return await build_handoff_packet(
+        session_id=req.session_id,
+        reason=reason,
+        user_text=req.user_text,
+        history=req.history,
+        profile=req.profile,
+        live_context=req.live_context,
+        llm_call=_llm_text,
+    )
 
 
 def _decision_event(decision) -> dict[str, Any]:  # type: ignore[no-untyped-def]
