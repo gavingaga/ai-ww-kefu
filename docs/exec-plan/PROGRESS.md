@@ -7,11 +7,13 @@
 
 ## 优先级 P0(生产前阻塞 / 业务核心)
 
-- [ ] **T-221** tool-svc 工具框架(注册 / 审计 / 超时 / 降级)
-- [ ] **T-222** tool-svc:`get_play_diagnostics` 真适配(消费 livectx-svc)
-- [ ] **T-223** tool-svc:`get_room_info` / `get_vod_info`
-- [ ] **T-224** tool-svc:`get_membership` / `get_subscription_orders` / `cancel_subscription`
+- [x] **T-221** tool-svc 工具框架(注册 / 审计 / 超时 / 降级)
+- [x] **T-222** tool-svc:`get_play_diagnostics` 真适配(消费 livectx-svc)
+- [x] **T-223** tool-svc:`get_room_info` / `get_vod_info`
+- [x] **T-224** tool-svc:`get_membership` / `get_subscription_orders` / `cancel_subscription`
        (写操作 dry_run + 二次确认通道)
+- [x] **T-225** tool-svc:`report_content` 留痕
+- [x] **T-226** tool-svc:`get_anchor_info`
 - [ ] **T-108** upload-svc:STS / 直传 / 病毒扫描钩子 / 白名单(支撑 T-401)
 - [ ] **T-401** web-c 图片 / 文件上传(直传 / 压缩 / 进度)
 - [ ] **T-405** web-c 满意度评价卡 + 撤回 + 重连

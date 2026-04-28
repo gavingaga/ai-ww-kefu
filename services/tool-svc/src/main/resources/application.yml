@@ -1,0 +1,28 @@
+server:
+  port: ${TOOL_PORT:8087}
+  shutdown: graceful
+
+spring:
+  application:
+    name: tool-svc
+  jackson:
+    default-property-inclusion: non_null
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+
+aikefu:
+  tool:
+    default-timeout-ms: ${TOOL_TIMEOUT_MS:3000}
+  audit-svc:
+    url: ${AUDIT_SVC_URL:http://localhost:8085}
+    timeout-ms: 1500
+    enabled: ${AUDIT_ENABLED:true}
+  livectx-svc:
+    url: ${LIVECTX_SVC_URL:http://localhost:8086}
+    timeout-ms: 1500
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

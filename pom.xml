@@ -39,7 +39,8 @@
         <module>services/agent-bff</module>
         <module>services/audit-svc</module>
         <module>services/livectx-svc</module>
-        <!-- 后续:upload-svc / tool-svc / report-svc -->
+        <module>services/tool-svc</module>
+        <!-- 后续:upload-svc / report-svc -->
     </modules>
 
     <dependencyManagement>
