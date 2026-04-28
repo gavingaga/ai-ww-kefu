@@ -93,4 +93,36 @@ class AgentServiceTest {
     var res = svc.setStatus(1L, "IDLE");
     assertThat(res).containsEntry("status", "IDLE");
   }
+
+  @Test
+  void whisperWritesSystemMessageAsSupervisor() {
+    var routing = mock(RoutingClient.class);
+    var session = mock(SessionClient.class);
+    when(session.append(anyString(), anyString(), org.mockito.ArgumentMatchers.anyMap()))
+        .thenReturn(Map.of("id", "msg_x"));
+    var svc = new AgentService(routing, session);
+    var res = svc.whisper(99L, "ses_a", "请把语速放慢点");
+    assertThat(res).containsEntry("id", "msg_x");
+    @SuppressWarnings("rawtypes")
+    org.mockito.ArgumentCaptor<Map> cap = org.mockito.ArgumentCaptor.forClass(Map.class);
+    org.mockito.Mockito.verify(session).append(anyString(), anyString(), cap.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> sent = cap.getValue();
+    assertThat(sent).containsEntry("role", "system");
+    assertThat(sent).containsEntry("type", "system");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> content = (Map<String, Object>) sent.get("content");
+    assertThat(content).containsEntry("sub", "supervisor");
+    assertThat(content).containsEntry("text", "请把语速放慢点");
+  }
+
+  @Test
+  void stealDelegatesToRoutingTransfer() {
+    var routing = mock(RoutingClient.class);
+    var session = mock(SessionClient.class);
+    when(routing.transfer(1L, 99L, "ses_a")).thenReturn(Map.of("ok", true));
+    var svc = new AgentService(routing, session);
+    var res = svc.steal(99L, 1L, "ses_a");
+    assertThat(res).containsEntry("ok", true);
+  }
 }

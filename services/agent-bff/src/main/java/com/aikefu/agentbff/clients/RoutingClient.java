@@ -79,4 +79,41 @@ public class RoutingClient {
   public Map<String, Object> stats() {
     return client.get().uri("/v1/stats").retrieve().body(new ParameterizedTypeReference<>() {});
   }
+
+  // ───── 主管干预(T-302) ─────
+
+  public Map<String, Object> transfer(long fromAgentId, long toAgentId, String sessionId) {
+    return client
+        .post()
+        .uri("/v1/sessions/{sid}/transfer", sessionId)
+        .body(Map.of("from_agent_id", fromAgentId, "to_agent_id", toAgentId))
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
+  public Map<String, Object> observe(long supervisorId, String sessionId) {
+    return client
+        .post()
+        .uri("/v1/supervisors/{id}/observe", supervisorId)
+        .body(Map.of("session_id", sessionId))
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
+  public Map<String, Object> unobserve(long supervisorId, String sessionId) {
+    return client
+        .post()
+        .uri("/v1/supervisors/{id}/unobserve", supervisorId)
+        .body(Map.of("session_id", sessionId))
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
+  public List<Map<String, Object>> supervisors() {
+    return client
+        .get()
+        .uri("/v1/supervisors")
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
 }

@@ -112,4 +112,42 @@ public class AgentService {
   public Map<String, Object> registerOrUpdate(Map<String, Object> body) {
     return routing.registerAgent(body);
   }
+
+  // ───── 主管干预(T-302) ─────
+
+  public Map<String, Object> observe(long supervisorId, String sessionId) {
+    return routing.observe(supervisorId, sessionId);
+  }
+
+  public Map<String, Object> unobserve(long supervisorId, String sessionId) {
+    return routing.unobserve(supervisorId, sessionId);
+  }
+
+  /**
+   * 主管插话 — 以 system 角色 + sub=supervisor 写一条消息;坐席与用户都能看到,
+   * AI 不会基于此再次调用工具。
+   */
+  public Map<String, Object> whisper(long supervisorId, String sessionId, String text) {
+    Map<String, Object> body = new java.util.LinkedHashMap<>();
+    body.put("type", "system");
+    body.put("role", "system");
+    body.put("content", Map.of("text", text, "sub", "supervisor"));
+    body.put("aiMeta", Map.of("supervisor_id", supervisorId, "kind", "whisper"));
+    return session.append(
+        sessionId, "whisper-" + supervisorId + "-" + System.currentTimeMillis(), body);
+  }
+
+  /** 抢接 — 把会话从原坐席手中转给主管。 */
+  public Map<String, Object> steal(long supervisorId, long fromAgentId, String sessionId) {
+    return routing.transfer(fromAgentId, supervisorId, sessionId);
+  }
+
+  /** 通用转接:agent → 另一个 agent / supervisor。 */
+  public Map<String, Object> transfer(long fromAgentId, long toAgentId, String sessionId) {
+    return routing.transfer(fromAgentId, toAgentId, sessionId);
+  }
+
+  public java.util.List<Map<String, Object>> supervisors() {
+    return routing.supervisors();
+  }
 }
