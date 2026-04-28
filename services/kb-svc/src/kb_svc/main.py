@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from .embed import Embedder, get_embedder
 from .ingest import ingest_document
 from .models import Document
-from .search import SearchOpts, hybrid_search
+from .search import SearchOpts, hybrid_search, hybrid_search_debug
 from .seed_loader import load_default_seeds
 from .store import ChunkStore
 
@@ -41,6 +41,16 @@ class SearchRequest(BaseModel):
     kb_id: str | None = None
     top_k: int = 5
     debug: bool = False
+
+
+class DebugSearchRequest(BaseModel):
+    query: str
+    kb_id: str | None = None
+    top_k: int = 5
+    vector_top: int = 50
+    bm25_top: int = 50
+    rrf_k: int = 60
+    rerank_top: int = 20
 
 
 def create_app(
@@ -111,6 +121,24 @@ def create_app(
             "query": req.query,
             "hits": [h.to_payload() for h in hits],
         }
+
+    @app.post("/v1/kb/debug/search")
+    async def debug_search(req: DebugSearchRequest) -> dict[str, Any]:
+        """检索调试 — 返回每路向量 / BM25 排名、RRF 分、Rerank 分与最终融合分。
+
+        管理后台用于"为什么这条没命中 / 为什么这条排前面"的调参排查。
+        """
+        if not req.query.strip():
+            raise HTTPException(400, "query required")
+        opts = SearchOpts(
+            kb_id=req.kb_id,
+            top_k=req.top_k,
+            vector_top=req.vector_top,
+            bm25_top=req.bm25_top,
+            rrf_k=req.rrf_k,
+            rerank_top=req.rerank_top,
+        )
+        return await hybrid_search_debug(store=s, embedder=e, query=req.query, opts=opts)
 
     @app.post("/v1/kb/match")
     async def match(req: SearchRequest) -> dict[str, Any]:

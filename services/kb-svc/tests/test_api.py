@@ -41,6 +41,36 @@ def test_match_endpoint_renders_chunks():
     assert body["chunks"]
 
 
+def test_debug_search_returns_per_route_scores():
+    c = make_client()
+    r = c.post(
+        "/v1/kb/debug/search",
+        json={"query": "视频卡顿怎么办", "top_k": 3, "vector_top": 10, "bm25_top": 10},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    # 每路至少有一个候选,且字段齐全
+    assert body["store_size"] > 0
+    assert body["opts"]["top_k"] == 3
+    assert body["vector"], "vector route empty"
+    assert body["bm25"], "bm25 route empty"
+    assert body["rrf"], "rrf empty"
+    assert body["rerank"], "rerank empty"
+    assert body["hits"], "final hits empty"
+    first = body["rerank"][0]
+    for k in ("chunk_id", "title", "vector_score", "bm25_score", "rrf_score", "rerank_score", "final_score"):
+        assert k in first, f"missing key {k} in rerank entry"
+    # 卡顿这种关键词,顶部至少一条标题相关
+    titles = [d["title"] for d in body["rerank"]]
+    assert any("卡顿" in t for t in titles)
+
+
+def test_debug_search_empty_query_400():
+    c = make_client()
+    r = c.post("/v1/kb/debug/search", json={"query": "  "})
+    assert r.status_code == 400
+
+
 def test_ingest_then_search():
     c = make_client()
     c.post(
