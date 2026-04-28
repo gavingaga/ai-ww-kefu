@@ -1,0 +1,25 @@
+server:
+  port: ${AGENT_BFF_PORT:8084}
+  shutdown: graceful
+
+spring:
+  application:
+    name: agent-bff
+  jackson:
+    default-property-inclusion: non_null
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+
+aikefu:
+  routing-svc:
+    url: ${ROUTING_SVC_URL:http://localhost:8083}
+    timeout-ms: 2000
+  session-svc:
+    url: ${SESSION_SVC_URL:http://localhost:8081}
+    timeout-ms: 3000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

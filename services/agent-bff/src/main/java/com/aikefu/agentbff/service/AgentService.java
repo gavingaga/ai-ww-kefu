@@ -1,0 +1,115 @@
+package com.aikefu.agentbff.service;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.stereotype.Service;
+
+import com.aikefu.agentbff.clients.RoutingClient;
+import com.aikefu.agentbff.clients.SessionClient;
+
+/** 座席视角的聚合操作。所有错误都向上传播,由 controller 转译为 HTTP。 */
+@Service
+public class AgentService {
+
+  private final RoutingClient routing;
+  private final SessionClient session;
+
+  public AgentService(RoutingClient routing, SessionClient session) {
+    this.routing = routing;
+    this.session = session;
+  }
+
+  /** 收件箱:待接队列(按坐席技能组过滤)+ 当前进行中会话快照。 */
+  public Map<String, Object> inbox(long agentId) {
+    Map<String, Object> agent = routing.getAgent(agentId);
+    @SuppressWarnings("unchecked")
+    List<String> groups = (List<String>) agent.getOrDefault("skillGroups", List.of());
+    @SuppressWarnings("unchecked")
+    java.util.Set<String> activeIds = new java.util.LinkedHashSet<>(
+        ((java.util.Collection<String>) agent.getOrDefault("activeSessionIds", List.of())));
+
+    // 队列:跨多个技能组合并(转 set 去重)
+    List<Map<String, Object>> waiting = new java.util.ArrayList<>();
+    java.util.Set<String> seen = new java.util.HashSet<>();
+    for (String g : groups) {
+      try {
+        for (Map<String, Object> e : routing.listQueue(g)) {
+          String id = String.valueOf(e.get("id"));
+          if (seen.add(id)) waiting.add(e);
+        }
+      } catch (Exception ex) {
+        // 忽略单个 group 失败,不阻塞其它
+      }
+    }
+
+    // 进行中会话:补充 session-svc 信息(history 由 web-agent 选中后再拉)
+    List<Map<String, Object>> active = new java.util.ArrayList<>();
+    for (String sid : activeIds) {
+      try {
+        active.add(session.session(sid));
+      } catch (Exception ex) {
+        // 会话已结束 / 跨节点等导致 404,忽略
+      }
+    }
+
+    Map<String, Object> out = new LinkedHashMap<>();
+    out.put("agent", agent);
+    out.put("waiting", waiting);
+    out.put("active", active);
+    return out;
+  }
+
+  /** 接受派单:routing.assign + (TODO) session.attachAgent + 状态推 IN_AGENT。
+   *
+   * <p>session-svc 在 M2 起步只暴露状态机跃迁的隐式 API(由 ai-hub 触发);M3
+   * 真实接入后这里需要再调 session.attachAgent。当前先打 routing.assign 完成派单。
+   */
+  public Map<String, Object> accept(long agentId, String entryId) {
+    return routing.assign(agentId, entryId);
+  }
+
+  /** 结束:释放 routing 占用 + 关闭会话状态。 */
+  public Map<String, Object> close(long agentId, String sessionId) {
+    routing.release(agentId, sessionId);
+    try {
+      session.close(sessionId);
+    } catch (Exception ex) {
+      // session 可能已 closed,这里幂等忽略
+    }
+    return Map.of("ok", true, "session_id", sessionId);
+  }
+
+  /** 转回 AI 托管(暂同 close + 由 ai-hub 重启会话);M3 末细化。 */
+  public Map<String, Object> transferToAi(long agentId, String sessionId) {
+    routing.release(agentId, sessionId);
+    return Map.of("ok", true, "session_id", sessionId, "transferred", "ai");
+  }
+
+  /** 取一条派单候选(不抢占)。 */
+  public Map<String, Object> peek(long agentId) {
+    return routing.peek(agentId);
+  }
+
+  /** 上下行同步:更新坐席状态。 */
+  public Map<String, Object> setStatus(long agentId, String status) {
+    return routing.setStatus(agentId, status);
+  }
+
+  /** 历史消息分页代理。 */
+  public Map<String, Object> messages(String sessionId, long before, int limit) {
+    return session.messages(sessionId, before, Math.max(1, Math.min(limit, 100)));
+  }
+
+  /** 坐席代发消息。 */
+  public Map<String, Object> sendMessage(
+      String sessionId, String idempotencyKey, Map<String, Object> body) {
+    return session.append(sessionId, idempotencyKey, body);
+  }
+
+  /** 注册 / 登录:坐席首次接入时往 routing 写一份。 */
+  public Map<String, Object> registerOrUpdate(Map<String, Object> body) {
+    return routing.registerAgent(body);
+  }
+}
