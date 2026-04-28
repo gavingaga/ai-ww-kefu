@@ -7,12 +7,14 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
 import com.aikefu.session.domain.Message;
 
-/** M1 内存实现。 */
+/** M1 内存实现。store=memory(默认)启用;store=mongo 由 MongoMessageRepository 接管。 */
 @Repository
+@ConditionalOnProperty(name = "aikefu.session.store", havingValue = "memory", matchIfMissing = true)
 public class InMemoryMessageRepository implements MessageRepository {
 
   /** sessionId → seq 排序消息 */

@@ -1,0 +1,9 @@
+spring:
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/aikefu}
+      database: ${MONGODB_DB:aikefu}
+
+aikefu:
+  session:
+    store: mongo
