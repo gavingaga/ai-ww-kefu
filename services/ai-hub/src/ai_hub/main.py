@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 from .decision import decide
 from .faq_client import FaqClient
 from .llm_client import chat_stream
-from .prompt import build_messages, render_system
+from .prompt import build_messages, render_with_meta
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,8 @@ class InferRequest(BaseModel):
     tools: list[dict[str, Any]] | None = None
     profile_id: str = "openai_default"
     stream: bool = True
+    prompt_version: int | None = None
+    """显式指定 prompt 模板版本(同 scene 下);为空取最高版本。"""
 
 
 def create_app(*, faq_client: FaqClient | None = None) -> FastAPI:
@@ -115,10 +117,20 @@ def create_app(*, faq_client: FaqClient | None = None) -> FastAPI:
 
             # ③ LLM_GENERAL
             yield _sse(_decision_event(decision))
-            sys_text = render_system(
+            sys_text, tmpl = render_with_meta(
                 profile=req.profile,
                 live_context=req.live_context,
                 summary=req.summary,
+                version=req.prompt_version,
+            )
+            yield _sse(
+                {
+                    "event": "prompt_template",
+                    "id": tmpl.id,
+                    "scene": tmpl.scene,
+                    "version": tmpl.version,
+                    "title": tmpl.title,
+                }
             )
             messages = build_messages(
                 user_text=req.user_text,
@@ -134,7 +146,7 @@ def create_app(*, faq_client: FaqClient | None = None) -> FastAPI:
                     tools=req.tools,
                 ):
                     if chunk.get("event") == "done":
-                        yield _sse({"event": "done", "tokens_out": tokens_out})
+                        yield _sse({"event": "done", "tokens_out": tokens_out, "prompt": tmpl.id})
                         return
                     if "error" in chunk:
                         yield _sse({"event": "error", "message": str(chunk["error"])[:300]})
@@ -145,7 +157,7 @@ def create_app(*, faq_client: FaqClient | None = None) -> FastAPI:
                     if delta:
                         tokens_out += len(delta)
                         yield _sse({"event": "token", "text": delta})
-                yield _sse({"event": "done", "tokens_out": tokens_out})
+                yield _sse({"event": "done", "tokens_out": tokens_out, "prompt": tmpl.id})
             except Exception as e:  # noqa: BLE001
                 logger.exception("ai-hub infer failed")
                 yield _sse({"event": "error", "message": str(e)[:300]})
