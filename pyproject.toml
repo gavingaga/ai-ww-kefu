@@ -17,8 +17,7 @@ dev = [
 members = [
     "services/llm-router",
     "services/ai-hub",
-    # 后续:
-    # "services/kb-svc",
+    "services/kb-svc",
 ]
 
 [tool.ruff]
