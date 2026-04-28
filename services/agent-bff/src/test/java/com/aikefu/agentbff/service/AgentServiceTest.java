@@ -141,6 +141,66 @@ class AgentServiceTest {
   }
 
   @Test
+  void sendMessagePushesFrameToGatewayAsAgent() {
+    var routing = mock(RoutingClient.class);
+    var session = mock(SessionClient.class);
+    var bus = mock(com.aikefu.agentbff.push.AgentEventBus.class);
+    var gateway = mock(com.aikefu.agentbff.clients.GatewayClient.class);
+    when(session.append(anyString(), anyString(), org.mockito.ArgumentMatchers.anyMap()))
+        .thenReturn(
+            Map.of(
+                "id", "msg_42",
+                "type", "text",
+                "role", "agent",
+                "content", Map.of("text", "您好"),
+                "clientMsgId", "agent-1"));
+    var svc = new AgentService(routing, session, bus, gateway);
+    svc.sendMessage("ses_a", "agent-1", Map.of("type", "text", "content", Map.of("text", "您好")));
+
+    @SuppressWarnings("rawtypes")
+    org.mockito.ArgumentCaptor<Map> cap = org.mockito.ArgumentCaptor.forClass(Map.class);
+    org.mockito.Mockito.verify(gateway)
+        .push(org.mockito.ArgumentMatchers.eq("ses_a"), cap.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> frame = cap.getValue();
+    assertThat(frame).containsEntry("type", "msg.text");
+    assertThat(frame).containsEntry("msg_id", "msg_42");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> payload = (Map<String, Object>) frame.get("payload");
+    assertThat(payload).containsEntry("role", "agent");
+    assertThat(payload).containsEntry("text", "您好");
+    assertThat(payload).containsEntry("client_msg_id", "agent-1");
+  }
+
+  @Test
+  void whisperPushesAsSystem() {
+    var routing = mock(RoutingClient.class);
+    var session = mock(SessionClient.class);
+    var bus = mock(com.aikefu.agentbff.push.AgentEventBus.class);
+    var gateway = mock(com.aikefu.agentbff.clients.GatewayClient.class);
+    when(session.append(anyString(), anyString(), org.mockito.ArgumentMatchers.anyMap()))
+        .thenReturn(
+            Map.of(
+                "id", "msg_w",
+                "type", "system",
+                "role", "system",
+                "content", Map.of("text", "请加急", "sub", "supervisor")));
+    var svc = new AgentService(routing, session, bus, gateway);
+    svc.whisper(99L, "ses_a", "请加急");
+    @SuppressWarnings("rawtypes")
+    org.mockito.ArgumentCaptor<Map> cap = org.mockito.ArgumentCaptor.forClass(Map.class);
+    org.mockito.Mockito.verify(gateway)
+        .push(org.mockito.ArgumentMatchers.eq("ses_a"), cap.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> frame = cap.getValue();
+    assertThat(frame).containsEntry("type", "msg.system");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> payload = (Map<String, Object>) frame.get("payload");
+    assertThat(payload).containsEntry("sub", "supervisor");
+    assertThat(payload).containsEntry("role", "system");
+  }
+
+  @Test
   void transferPublishesToBothAgents() {
     var routing = mock(RoutingClient.class);
     var session = mock(SessionClient.class);

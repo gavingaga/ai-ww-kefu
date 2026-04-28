@@ -26,6 +26,8 @@
 | `AGENT_BFF_PORT` | `8084` | |
 | `aikefu.routing-svc.url` | `http://localhost:8083` | |
 | `aikefu.session-svc.url` | `http://localhost:8081` | |
+| `GATEWAY_WS_URL` | (空) | 配置后坐席回复 / 主管插话会同步推到 gateway-ws 的 `/internal/push`,实时到达 C 端 |
+| `GATEWAY_INTERNAL_PUSH_TOKEN` | (空) | gateway-ws 端校验的共享 token(留空表示放开) |
 
 ## 后续
 

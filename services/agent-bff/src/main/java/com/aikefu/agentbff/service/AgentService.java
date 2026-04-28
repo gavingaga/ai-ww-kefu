@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
+import com.aikefu.agentbff.clients.GatewayClient;
 import com.aikefu.agentbff.clients.RoutingClient;
 import com.aikefu.agentbff.clients.SessionClient;
 import com.aikefu.agentbff.push.AgentEventBus;
@@ -17,22 +18,60 @@ public class AgentService {
   private final RoutingClient routing;
   private final SessionClient session;
   private final AgentEventBus bus;
+  private final GatewayClient gateway;
 
-  public AgentService(RoutingClient routing, SessionClient session, AgentEventBus bus) {
+  public AgentService(
+      RoutingClient routing,
+      SessionClient session,
+      AgentEventBus bus,
+      GatewayClient gateway) {
     this.routing = routing;
     this.session = session;
     this.bus = bus;
+    this.gateway = gateway;
   }
 
-  /** 单元测试用 — 不强依赖 SSE 总线。 */
+  /** 单元测试用 — 不强依赖 SSE 总线 / Gateway 推送。 */
   public AgentService(RoutingClient routing, SessionClient session) {
-    this(routing, session, new AgentEventBus());
+    this(routing, session, new AgentEventBus(), new GatewayClient("", "", 1500));
+  }
+
+  public AgentService(RoutingClient routing, SessionClient session, AgentEventBus bus) {
+    this(routing, session, bus, new GatewayClient("", "", 1500));
   }
 
   private void inboxChanged(long... agentIds) {
     for (long id : agentIds) {
       bus.publish(id, "inbox-changed", Map.of("agent_id", id, "ts", System.currentTimeMillis()));
     }
+  }
+
+  /**
+   * 把 session-svc 入库后的消息转成 WS 帧推到 gateway-ws,实时到达 C 端。
+   *
+   * @param sessionId 目标会话
+   * @param saved session-svc 返回的 message 文档
+   * @param fallbackRole 当 saved 中无 role 时使用的默认值(agent / system / ai)
+   */
+  private void pushToClient(String sessionId, Map<String, Object> saved, String fallbackRole) {
+    if (sessionId == null || sessionId.isBlank() || saved == null || saved.isEmpty()) return;
+    Map<String, Object> frame = new LinkedHashMap<>();
+    String type = String.valueOf(saved.getOrDefault("type", "text"));
+    frame.put("type", "msg." + type);
+    Object msgId = saved.get("id");
+    if (msgId != null) frame.put("msg_id", msgId);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> content =
+        saved.get("content") instanceof Map
+            ? new LinkedHashMap<>((Map<String, Object>) saved.get("content"))
+            : new LinkedHashMap<>();
+    String role = String.valueOf(saved.getOrDefault("role", fallbackRole));
+    content.putIfAbsent("role", role);
+    if (saved.get("clientMsgId") != null) {
+      content.putIfAbsent("client_msg_id", saved.get("clientMsgId"));
+    }
+    frame.put("payload", content);
+    gateway.push(sessionId, frame);
   }
 
   /** 收件箱:待接队列(按坐席技能组过滤)+ 当前进行中会话快照。 */
@@ -122,10 +161,12 @@ public class AgentService {
     return session.messages(sessionId, before, Math.max(1, Math.min(limit, 100)));
   }
 
-  /** 坐席代发消息。 */
+  /** 坐席代发消息 — 落库 + 实时推到 C 端 WS。 */
   public Map<String, Object> sendMessage(
       String sessionId, String idempotencyKey, Map<String, Object> body) {
-    return session.append(sessionId, idempotencyKey, body);
+    Map<String, Object> saved = session.append(sessionId, idempotencyKey, body);
+    pushToClient(sessionId, saved, "agent");
+    return saved;
   }
 
   /** 注册 / 登录:坐席首次接入时往 routing 写一份。 */
@@ -153,8 +194,11 @@ public class AgentService {
     body.put("role", "system");
     body.put("content", Map.of("text", text, "sub", "supervisor"));
     body.put("aiMeta", Map.of("supervisor_id", supervisorId, "kind", "whisper"));
-    return session.append(
-        sessionId, "whisper-" + supervisorId + "-" + System.currentTimeMillis(), body);
+    Map<String, Object> saved =
+        session.append(
+            sessionId, "whisper-" + supervisorId + "-" + System.currentTimeMillis(), body);
+    pushToClient(sessionId, saved, "system");
+    return saved;
   }
 
   /** 抢接 — 把会话从原坐席手中转给主管。 */

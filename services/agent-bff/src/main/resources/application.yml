@@ -17,6 +17,11 @@ aikefu:
   session-svc:
     url: ${SESSION_SVC_URL:http://localhost:8081}
     timeout-ms: 3000
+  gateway-ws:
+    # 留空则关闭"坐席消息直推 C 端"功能;C 端仍能通过会话历史拉到回复
+    url: ${GATEWAY_WS_URL:}
+    internal-token: ${GATEWAY_INTERNAL_PUSH_TOKEN:}
+    timeout-ms: 1500
 
 management:
   endpoints:

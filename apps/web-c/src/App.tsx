@@ -46,19 +46,36 @@ export function App() {
     wsRef.current = ws;
     const offState = ws.on("status", setStatus);
     const offFrame = ws.on("frame", (f) => {
-      // 1) 文本消息
-      if (f.type === "msg.text" && typeof f.payload?.text === "string") {
-        const role = (f.payload.role as "ai" | "agent" | "system") ?? "ai";
-        setMessages((prev) => [
-          ...prev.filter((m) => !(m.kind === "text" && m.thinking)),
-          {
-            kind: "text",
-            id: f.msg_id ?? `s-${f.seq ?? Date.now()}`,
-            role,
-            text: String(f.payload?.text),
-            ts: f.ts ?? Date.now(),
-          },
-        ]);
+      // 1) 文本消息(含 msg.text / msg.system / msg.image / msg.file 等)
+      if (
+        (f.type === "msg.text" || f.type === "msg.system") &&
+        typeof f.payload?.text === "string"
+      ) {
+        const fallback = f.type === "msg.system" ? "system" : "ai";
+        const role = (f.payload.role as "ai" | "agent" | "system" | "user") ?? fallback;
+        // user 帧通常是回执(sessionRouter 写入后的同一条);保留 client_msg_id 去重
+        const cmid = f.payload?.client_msg_id ? String(f.payload.client_msg_id) : null;
+        setMessages((prev) => {
+          const cleaned = prev.filter((m) => !(m.kind === "text" && m.thinking));
+          if (cmid && cleaned.some((m) => m.id === `u-${cmid}`)) {
+            // 已经有同 client_msg_id 的本地用户气泡,跳过(或只更新状态)
+            return cleaned;
+          }
+          if (role === "user") {
+            // 服务端回写的 user 回执 — 不再重复渲染
+            return cleaned;
+          }
+          return [
+            ...cleaned,
+            {
+              kind: "text",
+              id: f.msg_id ?? `s-${f.seq ?? Date.now()}`,
+              role,
+              text: String(f.payload?.text),
+              ts: f.ts ?? Date.now(),
+            },
+          ];
+        });
         return;
       }
       // 2) FAQ 卡片
