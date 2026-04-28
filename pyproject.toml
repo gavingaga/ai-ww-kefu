@@ -16,8 +16,8 @@ dev = [
 [tool.uv.workspace]
 members = [
     "services/llm-router",
+    "services/ai-hub",
     # 后续:
-    # "services/ai-hub",
     # "services/kb-svc",
 ]
 
