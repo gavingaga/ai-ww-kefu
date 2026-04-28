@@ -32,6 +32,16 @@ public class RestClients {
         .build();
   }
 
+  @Bean(name = "kbRestClient")
+  public RestClient kbRestClient(
+      @Value("${aikefu.kb-svc.url:http://localhost:8092}") String baseUrl,
+      @Value("${aikefu.kb-svc.timeout-ms:5000}") int timeoutMs) {
+    return RestClient.builder()
+        .baseUrl(baseUrl)
+        .requestFactory(factory(timeoutMs))
+        .build();
+  }
+
   private static SimpleClientHttpRequestFactory factory(int timeoutMs) {
     SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
     f.setConnectTimeout(Duration.ofMillis(timeoutMs));

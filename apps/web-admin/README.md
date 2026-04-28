@@ -1,3 +1,26 @@
 # apps/web-admin
 
-占位说明 — 后续里程碑填充。
+客服系统管理后台 — Vite + React + Tailwind,聚合 agent-bff `/v1/admin/*` 透传到下游服务。
+
+## 当前能力(MVP)
+
+- **KB 检索调试** (`/`):输入 query 与 vector_top / bm25_top / rrf_k / rerank_top 等参数,
+  实时看到向量召回、BM25 召回、RRF 融合、Rerank 综合分,以及最终回 ai-hub 的 hits。
+  对应后端 `POST /v1/admin/kb/debug/search` → kb-svc `POST /v1/kb/debug/search`。
+
+## 开发
+
+```bash
+# 依赖 agent-bff(默认 :8084),agent-bff 配置 KB_SVC_URL 指向 kb-svc(默认 :8092)
+pnpm --filter @ai-kefu/web-admin dev
+# 浏览器打开 http://localhost:5175
+```
+
+> 端口 5175;通过 vite proxy 把 `/v1/admin/*` 转发到 agent-bff。
+
+## 后续
+
+- 知识库管理(列表 / 入库 / 删除 / 重嵌入)
+- FAQ 节点管理(新建 / 编辑 / 命中统计)
+- 主管 / 运营看板(队列、坐席负载)
+- M3 末加 JWT + 角色 (ADMIN / SUPERVISOR) 鉴权
