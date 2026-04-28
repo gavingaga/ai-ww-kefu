@@ -175,3 +175,8 @@ export async function unobserve(supervisorId: number, sessionId: string): Promis
   });
   return jsonOr<unknown>(r);
 }
+
+export async function dashboard(): Promise<import("./types.js").DashboardData> {
+  const r = await fetch(`/v1/supervisor/dashboard`);
+  return jsonOr<import("./types.js").DashboardData>(r);
+}

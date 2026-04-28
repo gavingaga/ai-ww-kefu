@@ -6,6 +6,7 @@ import { ContextPanel } from "./components/ContextPanel.js";
 import { ConversationView } from "./components/ConversationView.js";
 import { SessionList } from "./components/SessionList.js";
 import { StatusBar } from "./components/StatusBar.js";
+import { SupervisorDashboard } from "./components/SupervisorDashboard.js";
 
 /**
  * 座席工作台入口 — 三栏:左会话列表 / 中消息 / 右上下文。
@@ -43,6 +44,7 @@ export function App() {
   const [waiting, setWaiting] = useState<QueueEntry[]>([]);
   const [active, setActive] = useState<SessionView[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [view, setView] = useState<"console" | "dashboard">("console");
   const packetMap = useRef<Map<string, HandoffPacket>>(new Map());
 
   const refresh = useCallback(async () => {
@@ -126,6 +128,7 @@ export function App() {
 
   const selectedPacket = selected ? packetMap.current.get(selected) ?? null : null;
   const selectedSession = active.find((s) => s.id === selected) ?? null;
+  const isSupervisor = cfg.role === "SUPERVISOR";
 
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column" }}>
@@ -135,36 +138,94 @@ export function App() {
         waitingCount={waiting.length}
         onSetStatus={onSetStatus}
       />
-      <div className="console-grid">
-        <SessionList
-          waiting={waiting}
-          active={active}
-          selectedSessionId={selected}
-          onAccept={onAccept}
-          onSelect={setSelected}
-        />
-        <ConversationView
-          agentId={cfg.agentId}
-          sessionId={selected}
-          onAfterAction={() => {
-            setSelected(null);
-            void refresh();
+      {isSupervisor ? (
+        <ViewTabs view={view} onChange={setView} />
+      ) : null}
+      {isSupervisor && view === "dashboard" ? (
+        <div style={{ flex: 1, padding: 12, overflow: "hidden" }}>
+          <SupervisorDashboard
+            supervisorId={cfg.agentId}
+            onObserveSession={(sid) => {
+              setView("console");
+              setSelected(sid);
+            }}
+          />
+        </div>
+      ) : (
+        <div className="console-grid">
+          <SessionList
+            waiting={waiting}
+            active={active}
+            selectedSessionId={selected}
+            onAccept={onAccept}
+            onSelect={setSelected}
+          />
+          <ConversationView
+            agentId={cfg.agentId}
+            sessionId={selected}
+            onAfterAction={() => {
+              setSelected(null);
+              void refresh();
+            }}
+            suggestedReplies={selectedPacket?.suggested_replies}
+          />
+          <ContextPanel
+            packet={selectedPacket}
+            liveContext={
+              (selectedSession?.liveContext as Record<string, unknown> | undefined) ?? null
+            }
+            agent={agent}
+            fromAgentId={cfg.agentId}
+            sessionId={selected}
+            onAfterAction={() => {
+              void refresh();
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ViewTabs({
+  view,
+  onChange,
+}: {
+  view: "console" | "dashboard";
+  onChange: (v: "console" | "dashboard") => void;
+}) {
+  const items: Array<{ k: "console" | "dashboard"; label: string }> = [
+    { k: "console", label: "工作台" },
+    { k: "dashboard", label: "主管视图" },
+  ];
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        gap: 6,
+        padding: "0 12px",
+        marginTop: 4,
+      }}
+    >
+      {items.map((it) => (
+        <button
+          key={it.k}
+          onClick={() => onChange(it.k)}
+          style={{
+            padding: "6px 16px",
+            border: "1px solid var(--color-border)",
+            borderBottom: view === it.k ? "1px solid transparent" : "1px solid var(--color-border)",
+            borderRadius: "var(--radius-sm) var(--radius-sm) 0 0",
+            background: view === it.k ? "var(--color-surface)" : "transparent",
+            cursor: "pointer",
+            fontWeight: view === it.k ? 600 : 400,
+            fontSize: "var(--font-size-caption)",
+            color: "var(--color-text-primary)",
           }}
-          suggestedReplies={selectedPacket?.suggested_replies}
-        />
-        <ContextPanel
-          packet={selectedPacket}
-          liveContext={
-            (selectedSession?.liveContext as Record<string, unknown> | undefined) ?? null
-          }
-          agent={agent}
-          fromAgentId={cfg.agentId}
-          sessionId={selected}
-          onAfterAction={() => {
-            void refresh();
-          }}
-        />
-      </div>
+        >
+          {it.label}
+        </button>
+      ))}
     </div>
   );
 }

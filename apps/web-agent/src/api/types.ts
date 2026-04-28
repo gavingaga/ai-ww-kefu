@@ -66,3 +66,54 @@ export interface HistoryResponse {
   items: MessageView[];
   hasMore: boolean;
 }
+
+// ───── 主管视图(T-302) ─────
+
+export interface DashboardKpi {
+  queue_total: number;
+  vip_waiting: number;
+  aged_waiting: number;
+  minor_waiting: number;
+  max_wait_seconds: number;
+  agents_idle: number;
+  agents_busy: number;
+  agents_away: number;
+  agents_offline: number;
+  supervisors: number;
+  load: number;
+  capacity: number;
+  load_ratio: number;
+  strategy: string;
+}
+
+export interface DashboardAgentRow {
+  id: number;
+  nickname: string;
+  status: AgentStatus;
+  role: "AGENT" | "SUPERVISOR";
+  skill_groups: string[];
+  load: number;
+  max_concurrency: number;
+  active_session_ids: string[];
+  observing_session_ids: string[];
+}
+
+export interface DashboardQueueRow {
+  id: string;
+  session_id: string;
+  skill_group: string;
+  priority: number;
+  vip: boolean;
+  reason?: string;
+  summary?: string;
+  enqueued_at?: string;
+  waited_seconds: number;
+  overflowed: boolean;
+}
+
+export interface DashboardData {
+  kpi: DashboardKpi;
+  queue_by_group: Record<string, number>;
+  agents: DashboardAgentRow[];
+  queue: DashboardQueueRow[];
+}
