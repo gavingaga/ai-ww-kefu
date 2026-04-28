@@ -28,6 +28,7 @@ from .decision import decide
 from .faq_client import FaqClient
 from .handoff import HandoffReason, build_handoff_packet
 from .kb_client import KbClient
+from .livectx_client import LivectxClient
 from .llm_client import chat_once_full, chat_stream
 from .prompt import build_messages, render_with_meta
 from .routing_client import RoutingClient
@@ -63,6 +64,7 @@ def create_app(
     tool_registry: ToolRegistry | None = None,
     routing_client: RoutingClient | None = None,
     kb_client: KbClient | None = None,
+    livectx_client: LivectxClient | None = None,
 ) -> FastAPI:
     app = FastAPI(title="ai-kefu ai-hub", version="0.5.0")
 
@@ -70,9 +72,11 @@ def create_app(
     notify_base = os.getenv("NOTIFY_SVC_URL", "http://localhost:8082")
     routing_base = os.getenv("ROUTING_SVC_URL", "http://localhost:8083")
     kb_base = os.getenv("KB_SVC_URL", "http://localhost:8092")
+    livectx_base = os.getenv("LIVECTX_SVC_URL", "http://localhost:8086")
     fc = faq_client if faq_client is not None else FaqClient(notify_base)
     rc = routing_client if routing_client is not None else RoutingClient(routing_base)
     kc = kb_client if kb_client is not None else KbClient(kb_base)
+    lcc = livectx_client if livectx_client is not None else LivectxClient(livectx_base)
     tools = tool_registry if tool_registry is not None else default_registry()
     max_tool_depth = int(os.getenv("AI_HUB_TOOL_MAX_DEPTH", "3"))
     rag_threshold = float(os.getenv("AI_HUB_RAG_THRESHOLD", "0.45"))
@@ -84,6 +88,9 @@ def create_app(
     @app.post("/v1/ai/infer")
     async def infer(req: InferRequest) -> Any:
         decision = decide(req.user_text)
+        # 服务端权威 LiveContext 拼合 — 先于决策路径,所有下游(FAQ / RAG /
+        # ToolLoop / Prompt / Handoff)统一吃合并后的视图,防 H5 伪造关键字段
+        await _enrich_live_context(req, lcc)
 
         async def gen() -> AsyncIterator[bytes]:
             # ① 强制规则 → handoff(优先级最高,绕过 FAQ / LLM)
@@ -373,6 +380,59 @@ async def _build_packet_for_handoff(
         live_context=req.live_context,
         llm_call=_llm_text,
     )
+
+
+async def _enrich_live_context(req: "InferRequest", lcc: LivectxClient) -> None:
+    """把 livectx-svc 的服务端权威 LiveContext 合并进 req.live_context。
+
+    服务端字段(anchor_id / program_title / play.cdn_node / play.drm /
+    user.level / user.is_minor_guard / vod_title 等)优先级高于 H5 上报。
+
+    任何失败都静默 fallthrough,主链路继续用前端 hint 回答。
+    """
+    lc = req.live_context or {}
+    scene = lc.get("scene") if isinstance(lc, dict) else None
+    if not scene:
+        return
+    room_id = lc.get("room_id") if isinstance(lc, dict) else None
+    vod_id = lc.get("vod_id") if isinstance(lc, dict) else None
+    uid = None
+    user = lc.get("user") if isinstance(lc, dict) else None
+    if isinstance(user, dict):
+        uid = user.get("uid")
+    try:
+        room_id = int(room_id) if room_id is not None else None
+    except (TypeError, ValueError):
+        room_id = None
+    try:
+        vod_id = int(vod_id) if vod_id is not None else None
+    except (TypeError, ValueError):
+        vod_id = None
+    try:
+        uid = int(uid) if uid is not None else None
+    except (TypeError, ValueError):
+        uid = None
+    if room_id is None and vod_id is None and uid is None:
+        return  # 没有可反查的键,跳过
+    server = await lcc.resolve(scene=str(scene), room_id=room_id, vod_id=vod_id, uid=uid)
+    if not server:
+        return
+    merged = _shallow_merge(lc if isinstance(lc, dict) else {}, server)
+    req.live_context = merged
+
+
+def _shallow_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """top-level 字段直接覆盖;嵌套 dict 做二级合并(eg. play / user)。"""
+    out: dict[str, Any] = dict(base)
+    for k, v in overlay.items():
+        cur = out.get(k)
+        if isinstance(v, dict) and isinstance(cur, dict):
+            merged = dict(cur)
+            merged.update(v)
+            out[k] = merged
+        elif v is not None:
+            out[k] = v
+    return out
 
 
 def _decision_event(decision) -> dict[str, Any]:  # type: ignore[no-untyped-def]
