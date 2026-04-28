@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 import com.aikefu.agentbff.audit.Auditor;
+import com.aikefu.agentbff.clients.AiHubClient;
 import com.aikefu.agentbff.clients.GatewayClient;
 import com.aikefu.agentbff.clients.RoutingClient;
 import com.aikefu.agentbff.clients.SessionClient;
@@ -21,6 +22,9 @@ public class AgentService {
   private final AgentEventBus bus;
   private final GatewayClient gateway;
   private final Auditor auditor;
+
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private AiHubClient aiHub;
 
   public AgentService(
       RoutingClient routing,
@@ -337,5 +341,48 @@ public class AgentService {
   /** 主管视图 — 直接转发 routing.dashboard。 */
   public Map<String, Object> dashboard() {
     return routing.dashboard();
+  }
+
+  /**
+   * AI 建议回复 — 拉最近 8 条历史 → 走 ai-hub /v1/ai/suggest;失败时返回空数组。
+   *
+   * <p>请求体可带 {@code live_context} / {@code profile} 直接覆盖;否则只用历史。
+   */
+  public Map<String, Object> suggestReplies(String sessionId, Map<String, Object> override) {
+    if (aiHub == null) return Map.of("suggestions", List.of());
+    Map<String, Object> raw = session.messages(sessionId, 0, 8);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> items =
+        (List<Map<String, Object>>) (raw == null ? List.of() : raw.getOrDefault("items", List.of()));
+    java.util.List<Map<String, String>> history = new java.util.ArrayList<>();
+    for (Map<String, Object> m : items) {
+      String role = String.valueOf(m.getOrDefault("role", "user"));
+      // 把 ai/agent 都视为 assistant,系统消息丢弃
+      String openaiRole =
+          role.equals("user") ? "user" : (role.equals("system") ? null : "assistant");
+      if (openaiRole == null) continue;
+      Object content = m.get("content");
+      String text = "";
+      if (content instanceof Map<?, ?> mc && mc.get("text") != null) {
+        text = String.valueOf(mc.get("text"));
+      } else if (content instanceof String s) {
+        text = s;
+      }
+      if (text.isBlank()) continue;
+      history.add(java.util.Map.of("role", openaiRole, "content", text));
+    }
+    Map<String, Object> req = new java.util.LinkedHashMap<>();
+    req.put("session_id", sessionId);
+    req.put("user_text", "");
+    req.put("history", history);
+    req.put("stream", false);
+    if (override.get("live_context") != null) req.put("live_context", override.get("live_context"));
+    if (override.get("profile") != null) req.put("profile", override.get("profile"));
+    if (override.get("summary") != null) req.put("summary", override.get("summary"));
+    try {
+      return aiHub.suggest(req);
+    } catch (Exception e) {
+      return Map.of("suggestions", List.of(), "error", e.getMessage());
+    }
   }
 }

@@ -36,6 +36,14 @@ public class AgentController {
     return toolClient.invoke(name, body);
   }
 
+  /** AI 建议回复 — 给坐席 1~3 条候选;由 AgentService 拼历史 + 转 ai-hub /v1/ai/suggest。 */
+  @org.springframework.web.bind.annotation.PostMapping("/sessions/{id}/suggest")
+  public Map<String, Object> suggestReplies(
+      @org.springframework.web.bind.annotation.PathVariable("id") String sessionId,
+      @org.springframework.web.bind.annotation.RequestBody(required = false) Map<String, Object> body) {
+    return svc.suggestReplies(sessionId, body == null ? java.util.Map.of() : body);
+  }
+
   @GetMapping("/healthz")
   public Map<String, String> healthz() {
     return Map.of("status", "ok");

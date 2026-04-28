@@ -85,6 +85,35 @@ def create_app(
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.post("/v1/ai/suggest")
+    async def suggest(req: InferRequest) -> Any:
+        """坐席 AI 建议回复 — 非流式,返回 1~3 条候选短回复(JSON)。"""
+        await _enrich_live_context(req, lcc)
+        sys_task = (
+            "你是客服坐席的 AI 助手。基于【最近对话】与【业务上下文】,给坐席输出 1~3 条候选回复,"
+            "每条 ≤ 30 字,语气自然、专业、可直接发给用户。仅返回严格的 JSON 数组,不要任何额外文字,例如:"
+            '["收到,我帮您查一下","建议先切到 480p 试试"]'
+        )
+        sys_text, _ = render_with_meta(
+            profile=req.profile,
+            live_context=req.live_context,
+            summary=req.summary,
+        )
+        messages = build_messages(
+            user_text=req.user_text or "(请基于历史给候选回复)",
+            history=req.history,
+            system_text=sys_text + "\n\n" + sys_task,
+        )
+        try:
+            resp = await chat_once_full(
+                base_url=llm_router_base, profile_id=req.profile_id, messages=messages
+            )
+            content = (resp.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+            return {"suggestions": _parse_suggestions(content)}
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ai-hub suggest failed: %s", e)
+            return {"suggestions": [], "error": str(e)[:200]}
+
     @app.post("/v1/ai/infer")
     async def infer(req: InferRequest) -> Any:
         decision = decide(req.user_text)
@@ -433,6 +462,33 @@ def _shallow_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, A
         elif v is not None:
             out[k] = v
     return out
+
+
+def _parse_suggestions(content: str) -> list[str]:
+    """容错解析 LLM 返回的候选回复 JSON 数组;非数组 / 解析失败时按行裁剪。"""
+    text = (content or "").strip()
+    if not text:
+        return []
+    # 尝试 JSON 数组
+    try:
+        first = text.find("[")
+        last = text.rfind("]")
+        if first != -1 and last != -1 and last > first:
+            arr = json.loads(text[first : last + 1])
+            if isinstance(arr, list):
+                out = [str(x).strip() for x in arr if str(x).strip()]
+                return out[:3]
+    except Exception:  # noqa: BLE001
+        pass
+    # 兜底:按行 / 分号 / 编号拆
+    lines: list[str] = []
+    for raw in text.replace("；", ";").splitlines():
+        s = raw.strip().lstrip("-•·*0123456789.) ").strip()
+        if s and not s.startswith("```"):
+            lines.append(s)
+        if len(lines) >= 3:
+            break
+    return lines[:3]
 
 
 def _decision_event(decision) -> dict[str, Any]:  # type: ignore[no-untyped-def]

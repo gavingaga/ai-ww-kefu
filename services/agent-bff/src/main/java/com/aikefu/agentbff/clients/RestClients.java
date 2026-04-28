@@ -82,6 +82,16 @@ public class RestClients {
         .build();
   }
 
+  @Bean(name = "aiHubRestClient")
+  public RestClient aiHubRestClient(
+      @Value("${aikefu.ai-hub.url:http://localhost:8091}") String baseUrl,
+      @Value("${aikefu.ai-hub.timeout-ms:8000}") int timeoutMs) {
+    return RestClient.builder()
+        .baseUrl(baseUrl)
+        .requestFactory(factory(timeoutMs))
+        .build();
+  }
+
   private static SimpleClientHttpRequestFactory factory(int timeoutMs) {
     SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
     f.setConnectTimeout(Duration.ofMillis(timeoutMs));

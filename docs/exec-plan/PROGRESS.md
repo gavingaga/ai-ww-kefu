@@ -25,7 +25,7 @@
 - [x] **T-502** web-admin 报表看板(KPI / CSAT 分布 / 转人工原因 / 工具 TopN / 坐席排行,5s 刷新)
 - [ ] **T-310** web-agent 实时大屏故障 TopN / 赛事预警
 - [x] **T-307** web-agent ContextPanel 完整 8 Tab(概览/用户/订阅/直播间/诊断/历史/合规/备注),走 agent-bff /v1/agent/tools/* 透传 tool-svc
-- [ ] **T-308** web-agent AI 建议回复独立面板
+- [x] **T-308** web-agent AI 建议回复(ai-hub /v1/ai/suggest 非流式 + agent-bff 透传 + ConversationView 输入条上方面板)
 - [ ] **T-311** 高风险操作二次审批(退款 / 未成年 / 封禁)
 
 ## 优先级 P2(增强体验 + 配置后台)

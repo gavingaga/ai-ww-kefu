@@ -193,6 +193,8 @@ export function ConversationView({
         <div ref={bottomRef} />
       </div>
 
+      <AiSuggestionRow sessionId={sessionId} onPick={send} />
+
       {suggestedReplies && suggestedReplies.length > 0 ? (
         <div
           style={{
@@ -212,7 +214,7 @@ export function ConversationView({
               flex: "none",
             }}
           >
-            建议回复:
+            Packet 建议:
           </span>
           {suggestedReplies.map((s, i) => (
             <Capsule key={i} size="sm" variant="ghost" onClick={() => send(s)}>
@@ -368,5 +370,84 @@ function ToolInlineRef({ meta }: { meta: AiMeta }) {
     >
       🔧 工具 {calls.length} 次{failN > 0 ? `(${failN} 失败)` : ""}
     </span>
+  );
+}
+
+function AiSuggestionRow({
+  sessionId,
+  onPick,
+}: {
+  sessionId: string | null;
+  onPick: (text: string) => Promise<void> | void;
+}) {
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const refresh = async () => {
+    if (!sessionId) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/v1/agent/sessions/${encodeURIComponent(sessionId)}/suggest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      if (!r.ok) throw new Error(`${r.status}`);
+      const data = (await r.json()) as { suggestions?: string[]; error?: string };
+      setSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
+      if (data.error) setErr(data.error);
+    } catch (e) {
+      setErr(String((e as Error).message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setSuggestions([]);
+    setErr(null);
+  }, [sessionId]);
+
+  if (!sessionId) return null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 6,
+        padding: "8px 12px",
+        overflowX: "auto",
+        alignItems: "center",
+        borderTop: "1px solid var(--color-border)",
+        background:
+          "color-mix(in srgb, var(--color-primary) 4%, var(--color-surface-alt))",
+      }}
+    >
+      <span style={{ color: "var(--color-text-secondary)", fontSize: 12, flex: "none" }}>
+        ✨ AI 建议:
+      </span>
+      {suggestions.length === 0 && !loading ? (
+        <span style={{ color: "var(--color-text-tertiary)", fontSize: 12 }}>
+          {err ? `失败:${err}` : "点「生成」让 AI 给候选"}
+        </span>
+      ) : null}
+      {loading ? (
+        <span style={{ color: "var(--color-text-tertiary)", fontSize: 12 }}>生成中…</span>
+      ) : null}
+      {suggestions.map((s, i) => (
+        <Capsule key={i} size="sm" variant="primary" onClick={() => void onPick(s)}>
+          {s}
+        </Capsule>
+      ))}
+      <Capsule
+        size="sm"
+        variant="ghost"
+        onClick={() => void refresh()}
+        disabled={loading}
+      >
+        {suggestions.length > 0 ? "重新生成" : "生成"}
+      </Capsule>
+    </div>
   );
 }
