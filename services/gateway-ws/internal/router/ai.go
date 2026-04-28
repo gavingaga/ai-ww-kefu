@@ -87,6 +87,21 @@ func (r *AI) streamReply(ctx context.Context, conn *wsconn.Conn, sid, refMsgID, 
 				tokens += len(ev.Text)
 				emitChunk(ev.Text, false)
 			}
+		case "faq":
+			// FAQ 命中:推一帧 msg.faq,客户端按卡片样式渲染;done 仍由后续事件触发
+			body, _ := json.Marshal(map[string]interface{}{
+				"node_id": ev.NodeID,
+				"title":   ev.Title,
+				"answer":  ev.Answer,
+				"how":     ev.How,
+				"score":   ev.Score,
+			})
+			conn.SendFrame(frame.Frame{
+				Type:      frame.TypeMsgFAQ,
+				SessionID: sid,
+				MsgID:     refMsgID,
+				Payload:   body,
+			})
 		case "handoff":
 			// 转人工系统消息
 			body, _ := json.Marshal(map[string]interface{}{

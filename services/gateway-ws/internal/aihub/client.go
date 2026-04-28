@@ -56,7 +56,15 @@ type Event struct {
 	Text       string                 `json:"text,omitempty"`
 	Message    string                 `json:"message,omitempty"`
 	TokensOut  int                    `json:"tokens_out,omitempty"`
-	Raw        map[string]interface{} `json:"-"`
+
+	// FAQ 通道字段(event="faq" 时填充)
+	NodeID string                 `json:"node_id,omitempty"`
+	Title  string                 `json:"title,omitempty"`
+	Answer map[string]interface{} `json:"answer,omitempty"`
+	Score  float64                `json:"score,omitempty"`
+	How    string                 `json:"how,omitempty"`
+
+	Raw map[string]interface{} `json:"-"`
 }
 
 // InferStream 调 /v1/ai/infer,把 SSE 解析为 Event,通过 callback 回调。

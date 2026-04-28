@@ -28,6 +28,9 @@ const (
 // 服务端 → 客户端 事件常量(节选,详见 events.schema.json)
 const (
 	TypeMsgChunk            = "msg.chunk"
+	TypeMsgFAQ              = "msg.faq"
+	TypeMsgCard             = "msg.card"
+	TypeMsgSystem           = "msg.system"
 	TypeEventQueueUpdate    = "event.queue_update"
 	TypeEventAgentJoin      = "event.agent_join"
 	TypeEventSessionClose   = "event.session_close"

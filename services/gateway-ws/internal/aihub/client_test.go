@@ -76,6 +76,38 @@ func TestInferStreamLLMTokens(t *testing.T) {
 	}
 }
 
+func TestInferStreamFAQEvent(t *testing.T) {
+	srv := sseServer([]string{
+		`{"event":"decision","action":"faq","reason":"faq_exact"}`,
+		`{"event":"faq","node_id":"play.buffer","title":"我看视频卡顿怎么办?","how":"exact","score":1.0,"answer":{"contentMd":"切到 480p 试试"}}`,
+		`{"event":"done"}`,
+	})
+	defer srv.Close()
+	c := New(srv.URL)
+	var hit *Event
+	err := c.InferStream(context.Background(),
+		InferRequest{SessionID: "s", UserText: "卡顿"},
+		func(ev Event) error {
+			if ev.Event == "faq" {
+				e := ev
+				hit = &e
+			}
+			return nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hit == nil {
+		t.Fatal("expected faq event")
+	}
+	if hit.NodeID != "play.buffer" || hit.How != "exact" || hit.Title == "" {
+		t.Fatalf("unexpected faq event: %+v", hit)
+	}
+	if hit.Answer == nil || hit.Answer["contentMd"] != "切到 480p 试试" {
+		t.Fatalf("answer not parsed: %+v", hit.Answer)
+	}
+}
+
 func TestInferStreamHTTPError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(503)
