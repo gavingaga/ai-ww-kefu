@@ -28,25 +28,68 @@ export function ConversationView({
   useEffect(() => {
     if (!sessionId) return;
     let cancelled = false;
+    let es: EventSource | null = null;
+
     const load = async () => {
       try {
         setLoading(true);
         const r = await listMessages(sessionId, 0, 50);
-        if (!cancelled)
-          setMessages([...(r.items ?? [])].sort((a, b) => a.seq - b.seq));
+        if (cancelled) return;
+        const sorted = [...(r.items ?? [])].sort((a, b) => a.seq - b.seq);
+        setMessages(sorted);
       } catch {
         if (!cancelled) setMessages([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
-    load();
-    const t = setInterval(load, 4000);
+
+    const upsert = (incoming: MessageView | null) => {
+      if (!incoming) return;
+      setMessages((prev) => {
+        // 同 id 去重 + 同 (sessionId, clientMsgId) 去重
+        const dedup = prev.filter(
+          (m) =>
+            m.id !== incoming.id &&
+            !(
+              incoming.clientMsgId &&
+              m.clientMsgId &&
+              incoming.clientMsgId === m.clientMsgId &&
+              incoming.sessionId === m.sessionId
+            ),
+        );
+        return [...dedup, incoming].sort((a, b) => a.seq - b.seq);
+      });
+    };
+
+    void load();
+    // SSE:只在 session-message 携带的 session_id 与当前一致时合并
+    try {
+      es = new EventSource(`/v1/agent/events?agent_id=${agentId}`);
+      es.addEventListener("session-message", (ev) => {
+        try {
+          const data = JSON.parse((ev as MessageEvent).data) as {
+            session_id?: string;
+            message?: MessageView;
+          };
+          if (!data || data.session_id !== sessionId) return;
+          upsert(data.message ?? null);
+        } catch {
+          // 忽略坏 payload
+        }
+      });
+    } catch {
+      // 不支持 EventSource 时回退轮询
+    }
+    // 30s 兜底轮询(用来兜 C 端发来的、未走 agent-bff 的消息;后续 ticket 接 gateway-ws → bff 反向通知后可去掉)
+    const fallback = setInterval(load, 30_000);
+
     return () => {
       cancelled = true;
-      clearInterval(t);
+      clearInterval(fallback);
+      es?.close();
     };
-  }, [sessionId]);
+  }, [agentId, sessionId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });

@@ -55,6 +55,8 @@ export interface MessageView {
   id: string;
   sessionId: string;
   seq: number;
+  /** 客户端消息 ID(幂等键),坐席侧也用于去重 SSE 重复推送 */
+  clientMsgId?: string;
   role: "user" | "ai" | "agent" | "system";
   type: string;
   content?: { text?: string; [k: string]: unknown };
