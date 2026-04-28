@@ -1,0 +1,41 @@
+@import "@ai-kefu/design-tokens/tokens.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-primary) 4%, #f5f5f7) 0%,
+      #ececef 100%
+    );
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-theme="dark"] body {
+  background: linear-gradient(180deg, #0a0a0c 0%, #050505 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.console-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  gap: 12px;
+  height: calc(100% - 56px);
+  padding: 12px;
+}
