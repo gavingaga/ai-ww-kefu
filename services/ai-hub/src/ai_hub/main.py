@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 from .decision import decide
 from .faq_client import FaqClient
 from .handoff import HandoffReason, build_handoff_packet
+from .kb_client import KbClient
 from .llm_client import chat_once_full, chat_stream
 from .prompt import build_messages, render_with_meta
 from .routing_client import RoutingClient
@@ -61,16 +62,20 @@ def create_app(
     faq_client: FaqClient | None = None,
     tool_registry: ToolRegistry | None = None,
     routing_client: RoutingClient | None = None,
+    kb_client: KbClient | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="ai-kefu ai-hub", version="0.4.0")
+    app = FastAPI(title="ai-kefu ai-hub", version="0.5.0")
 
     llm_router_base = os.getenv("LLM_ROUTER_URL", "http://localhost:8090")
     notify_base = os.getenv("NOTIFY_SVC_URL", "http://localhost:8082")
     routing_base = os.getenv("ROUTING_SVC_URL", "http://localhost:8083")
+    kb_base = os.getenv("KB_SVC_URL", "http://localhost:8092")
     fc = faq_client if faq_client is not None else FaqClient(notify_base)
     rc = routing_client if routing_client is not None else RoutingClient(routing_base)
+    kc = kb_client if kb_client is not None else KbClient(kb_base)
     tools = tool_registry if tool_registry is not None else default_registry()
     max_tool_depth = int(os.getenv("AI_HUB_TOOL_MAX_DEPTH", "3"))
+    rag_threshold = float(os.getenv("AI_HUB_RAG_THRESHOLD", "0.45"))
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -147,19 +152,40 @@ def create_app(
                 yield _sse({"event": "done", "tokens_out": 0})
                 return
 
-            # ③ LLM_GENERAL — 可选 ToolLoop → 最终流式
+            # ③ LLM_GENERAL — 可选 RAG → 可选 ToolLoop → 最终流式
             yield _sse(_decision_event(decision))
 
             tool_results_summary: dict[str, Any] = {}
             tool_events_log: list[dict[str, Any]] = []
 
+            # ③.1 RAG 召回(失败 / 低于阈值 → rag_text 留空,LLM 仍会回答)
+            rag_text = ""
+            rag_top: list[dict[str, Any]] = []
+            try:
+                kb_hit = await kc.match(req.user_text, top_k=5)
+            except Exception as e:  # noqa: BLE001
+                logger.debug("kb match failed: %s", e)
+                kb_hit = None
+            if kb_hit and float(kb_hit.get("score") or 0.0) >= rag_threshold:
+                rag_text = str(kb_hit.get("rendered") or "")
+                rag_top = list(kb_hit.get("chunks") or [])
+                yield _sse(
+                    {
+                        "event": "rag_chunks",
+                        "score": float(kb_hit.get("score") or 0.0),
+                        "top_title": kb_hit.get("top_title"),
+                        "chunks": rag_top,
+                    }
+                )
+
             # 工具循环(仅当 tools 白名单非 None;空列表 = 显式禁用)
             if req.tools:
-                # 先用一份"无工具结果"的 system 渲染做循环底盘
+                # 先用一份"无工具结果"的 system 渲染做循环底盘(已含 rag_chunks)
                 sys_text_first, _ = render_with_meta(
                     profile=req.profile,
                     live_context=req.live_context,
                     summary=req.summary,
+                    rag_chunks=rag_text,
                     version=req.prompt_version,
                 )
                 base_messages = build_messages(
@@ -219,6 +245,7 @@ def create_app(
                         live_context=req.live_context,
                         summary=req.summary,
                         tool_results=tool_results_summary,
+                        rag_chunks=rag_text,
                         version=req.prompt_version,
                     )
                     yield _sse(
@@ -247,6 +274,7 @@ def create_app(
                 live_context=req.live_context,
                 summary=req.summary,
                 tool_results=tool_results_summary,
+                rag_chunks=rag_text,
                 version=req.prompt_version,
             )
             yield _sse(
