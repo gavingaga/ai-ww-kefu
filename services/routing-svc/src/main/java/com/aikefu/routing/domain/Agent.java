@@ -26,6 +26,9 @@ public class Agent {
 
   @Builder.Default AgentStatus status = AgentStatus.OFFLINE;
 
+  /** 角色 — AGENT / SUPERVISOR(主管拥有监听 / 插话 / 抢接 权限)。 */
+  @Builder.Default AgentRole role = AgentRole.AGENT;
+
   /** 该坐席覆盖的技能组(优先级高的优先分配)。 */
   @Builder.Default Set<String> skillGroups = new LinkedHashSet<>();
 
@@ -34,6 +37,9 @@ public class Agent {
 
   /** 当前承载的会话 ID 集合(由 RoutingService 维护)。 */
   @Builder.Default Set<String> activeSessionIds = new LinkedHashSet<>();
+
+  /** 当前以"主管"身份正在观察的会话 ID 集合。 */
+  @Builder.Default Set<String> observingSessionIds = new LinkedHashSet<>();
 
   /** 上次状态变更时间。 */
   Instant statusChangedAt;

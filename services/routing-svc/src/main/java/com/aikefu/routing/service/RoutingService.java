@@ -141,6 +141,87 @@ public class RoutingService {
     agents.save(agent);
   }
 
+  // ──────────── 主管干预(T-302) ────────────
+
+  /** 抢接 / 转接:把会话从 fromAgent 手中转给 toAgent;原坐席不持有也能 attach。 */
+  public synchronized Assignment transfer(long fromAgentId, long toAgentId, String sessionId) {
+    if (sessionId == null || sessionId.isBlank()) {
+      throw new IllegalArgumentException("sessionId required");
+    }
+    if (fromAgentId == toAgentId) {
+      throw new IllegalArgumentException("from == to");
+    }
+    Agent to = agents.findById(toAgentId).orElseThrow(() -> new AgentNotFound(toAgentId));
+    if (to.getStatus() == com.aikefu.routing.domain.AgentStatus.OFFLINE) {
+      throw new IllegalStateException("target agent offline");
+    }
+    Agent from = agents.findById(fromAgentId).orElse(null);
+    if (from != null && from.getActiveSessionIds() != null) {
+      from.getActiveSessionIds().remove(sessionId);
+      if (from.getStatus() == com.aikefu.routing.domain.AgentStatus.BUSY
+          && from.getActiveSessionIds().size() < from.getMaxConcurrency()) {
+        from.setStatus(com.aikefu.routing.domain.AgentStatus.IDLE);
+        from.setStatusChangedAt(Instant.now());
+      }
+      agents.save(from);
+    }
+    if (to.getActiveSessionIds() == null) {
+      to.setActiveSessionIds(new LinkedHashSet<>());
+    }
+    to.getActiveSessionIds().add(sessionId);
+    if (to.getActiveSessionIds().size() >= to.getMaxConcurrency()) {
+      to.setStatus(com.aikefu.routing.domain.AgentStatus.BUSY);
+      to.setStatusChangedAt(Instant.now());
+    }
+    agents.save(to);
+    return Assignment.builder()
+        .entryId("transfer_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8))
+        .sessionId(sessionId)
+        .agentId(toAgentId)
+        .skillGroup("transfer")
+        .assignedAt(Instant.now())
+        .build();
+  }
+
+  /** 主管开始观察会话。仅 SUPERVISOR 角色可调用。 */
+  public synchronized void addObserver(long supervisorId, String sessionId) {
+    Agent sup = agents.findById(supervisorId).orElseThrow(() -> new AgentNotFound(supervisorId));
+    if (sup.getRole() != com.aikefu.routing.domain.AgentRole.SUPERVISOR) {
+      throw new IllegalStateException("agent " + supervisorId + " is not SUPERVISOR");
+    }
+    if (sup.getObservingSessionIds() == null) {
+      sup.setObservingSessionIds(new LinkedHashSet<>());
+    }
+    sup.getObservingSessionIds().add(sessionId);
+    agents.save(sup);
+  }
+
+  public synchronized void removeObserver(long supervisorId, String sessionId) {
+    Agent sup = agents.findById(supervisorId).orElse(null);
+    if (sup == null || sup.getObservingSessionIds() == null) return;
+    sup.getObservingSessionIds().remove(sessionId);
+    agents.save(sup);
+  }
+
+  /** 列出当前观察该会话的主管 ID 集合(用于 BFF 推送插话权限校验)。 */
+  public java.util.Set<Long> observersOf(String sessionId) {
+    java.util.Set<Long> out = new LinkedHashSet<>();
+    for (Agent a : agents.all()) {
+      if (a.getRole() == com.aikefu.routing.domain.AgentRole.SUPERVISOR
+          && a.getObservingSessionIds() != null
+          && a.getObservingSessionIds().contains(sessionId)) {
+        out.add(a.getId());
+      }
+    }
+    return out;
+  }
+
+  public List<Agent> listSupervisors() {
+    return agents.all().stream()
+        .filter(a -> a.getRole() == com.aikefu.routing.domain.AgentRole.SUPERVISOR)
+        .toList();
+  }
+
   // ──────────── 坐席管理 ────────────
 
   public Agent registerOrUpdate(Agent agent) {
@@ -152,16 +233,23 @@ public class RoutingService {
         existing.setSkillGroups(new LinkedHashSet<>(agent.getSkillGroups()));
       }
       if (agent.getMaxConcurrency() > 0) existing.setMaxConcurrency(agent.getMaxConcurrency());
+      if (agent.getRole() != null) existing.setRole(agent.getRole());
       return agents.save(existing);
     }
     if (agent.getActiveSessionIds() == null) {
       agent.setActiveSessionIds(new LinkedHashSet<>());
+    }
+    if (agent.getObservingSessionIds() == null) {
+      agent.setObservingSessionIds(new LinkedHashSet<>());
     }
     if (agent.getSkillGroups() == null) {
       agent.setSkillGroups(new LinkedHashSet<>());
     }
     if (agent.getStatus() == null) {
       agent.setStatus(AgentStatus.OFFLINE);
+    }
+    if (agent.getRole() == null) {
+      agent.setRole(com.aikefu.routing.domain.AgentRole.AGENT);
     }
     if (agent.getMaxConcurrency() <= 0) {
       agent.setMaxConcurrency(5);

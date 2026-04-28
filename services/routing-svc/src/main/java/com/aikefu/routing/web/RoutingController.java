@@ -79,6 +79,7 @@ public class RoutingController {
                 req.skillGroups() == null ? new LinkedHashSet<>() : new LinkedHashSet<>(req.skillGroups()))
             .maxConcurrency(req.maxConcurrency() == null ? 5 : req.maxConcurrency())
             .status(req.status() == null ? AgentStatus.OFFLINE : req.status())
+            .role(req.role() == null ? com.aikefu.routing.domain.AgentRole.AGENT : req.role())
             .build());
   }
 
@@ -120,5 +121,52 @@ public class RoutingController {
       @PathVariable("sessionId") String sessionId, @RequestParam("agent_id") long agentId) {
     svc.release(agentId, sessionId);
     return ResponseEntity.noContent().build();
+  }
+
+  // ──────────── 主管干预(T-302) ────────────
+
+  /** 抢接 / 转接。{@code from_agent_id} 不持有该会话也允许。 */
+  @PostMapping("/sessions/{sessionId}/transfer")
+  public ResponseEntity<Map<String, Object>> transfer(
+      @PathVariable("sessionId") String sessionId, @RequestBody Map<String, Object> body) {
+    long from = ((Number) body.getOrDefault("from_agent_id", 0)).longValue();
+    long to = ((Number) body.getOrDefault("to_agent_id", 0)).longValue();
+    if (to <= 0) return ResponseEntity.badRequest().build();
+    var assignment = svc.transfer(from, to, sessionId);
+    return ResponseEntity.ok(
+        Map.of(
+            "ok", true,
+            "session_id", assignment.getSessionId(),
+            "from_agent_id", from,
+            "to_agent_id", to,
+            "assigned_at", assignment.getAssignedAt()));
+  }
+
+  @PostMapping("/supervisors/{id}/observe")
+  public ResponseEntity<Map<String, Object>> observe(
+      @PathVariable("id") long supervisorId, @RequestBody Map<String, String> body) {
+    String sid = body == null ? null : body.get("session_id");
+    if (sid == null || sid.isBlank()) return ResponseEntity.badRequest().build();
+    svc.addObserver(supervisorId, sid);
+    return ResponseEntity.ok(Map.of("ok", true, "session_id", sid));
+  }
+
+  @PostMapping("/supervisors/{id}/unobserve")
+  public ResponseEntity<Map<String, Object>> unobserve(
+      @PathVariable("id") long supervisorId, @RequestBody Map<String, String> body) {
+    String sid = body == null ? null : body.get("session_id");
+    if (sid == null || sid.isBlank()) return ResponseEntity.badRequest().build();
+    svc.removeObserver(supervisorId, sid);
+    return ResponseEntity.ok(Map.of("ok", true, "session_id", sid));
+  }
+
+  @GetMapping("/sessions/{sessionId}/observers")
+  public Map<String, Object> observers(@PathVariable("sessionId") String sessionId) {
+    return Map.of("session_id", sessionId, "observers", svc.observersOf(sessionId));
+  }
+
+  @GetMapping("/supervisors")
+  public List<Agent> supervisors() {
+    return svc.listSupervisors();
   }
 }

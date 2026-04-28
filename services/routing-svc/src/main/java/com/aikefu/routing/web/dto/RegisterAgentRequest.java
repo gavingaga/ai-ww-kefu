@@ -2,6 +2,7 @@ package com.aikefu.routing.web.dto;
 
 import java.util.List;
 
+import com.aikefu.routing.domain.AgentRole;
 import com.aikefu.routing.domain.AgentStatus;
 
 public record RegisterAgentRequest(
@@ -10,4 +11,5 @@ public record RegisterAgentRequest(
     String avatarUrl,
     List<String> skillGroups,
     Integer maxConcurrency,
-    AgentStatus status) {}
+    AgentStatus status,
+    AgentRole role) {}
