@@ -104,6 +104,17 @@ export interface MediaContent {
   error?: string;
 }
 
+export interface CsatContent {
+  /** 已提交的星级(0=未评) */
+  rating: number;
+  tags: string[];
+  comment?: string;
+  /** 服务端建议的可选标签 */
+  suggestedTags?: string[];
+  /** 提交毫秒;30s 内可"撤回 + 重评" */
+  submittedAt?: number;
+}
+
 export type Message =
   | {
       kind: "text";
@@ -140,6 +151,13 @@ export type Message =
       role: "user" | "ai" | "agent";
       ts: number;
       media: MediaContent;
+    }
+  | {
+      kind: "csat";
+      id: string;
+      role: "system";
+      ts: number;
+      csat: CsatContent;
     }
   | {
       kind: "file";

@@ -152,6 +152,24 @@ export function App() {
         ]);
         return;
       }
+      // 3.2) 满意度评价邀请(坐席 / AI 收尾)
+      if (f.type === "msg.csat") {
+        const p = f.payload ?? {};
+        const suggested = Array.isArray(p.suggested_tags)
+          ? (p.suggested_tags as string[])
+          : undefined;
+        setMessages((prev) => [
+          ...prev,
+          {
+            kind: "csat",
+            id: f.msg_id ?? `csat-${f.seq ?? Date.now()}`,
+            role: "system",
+            ts: f.ts ?? Date.now(),
+            csat: { rating: 0, tags: [], suggestedTags: suggested },
+          },
+        ]);
+        return;
+      }
       // 4) 流式结束 — 占位思考气泡转正常(若仍为空,显示提示)
       if (f.type === "msg.chunk" && f.payload?.end) {
         setMessages((prev) =>
@@ -323,6 +341,57 @@ export function App() {
     [sendUser],
   );
 
+  const onCsatSubmit = useCallback(
+    async (
+      msgId: string,
+      input: { rating: number; tags: string[]; comment?: string },
+    ) => {
+      const submittedAt = Date.now();
+      // 乐观更新 UI
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.kind === "csat" && m.id === msgId
+            ? {
+                ...m,
+                csat: {
+                  ...m.csat,
+                  rating: input.rating,
+                  tags: input.tags,
+                  comment: input.comment,
+                  submittedAt,
+                },
+              }
+            : m,
+        ),
+      );
+      // 双通道:HTTP /v1/csat 落库 + WS event.csat 通知坐席侧
+      try {
+        await fetch("/v1/csat", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            session_id: SESSION_ID,
+            rating: input.rating,
+            tags: input.tags,
+            comment: input.comment,
+            actor: "user",
+          }),
+        });
+      } catch (e) {
+        console.warn("[csat] http post failed, ws-only fallback", e);
+      }
+      const ws = wsRef.current;
+      if (ws && ws.status().state === "open") {
+        ws.send({
+          type: "event.csat",
+          session_id: SESSION_ID,
+          payload: { rating: input.rating, tags: input.tags, comment: input.comment },
+        });
+      }
+    },
+    [],
+  );
+
   const onPickFile = useCallback(async (file: File) => {
     const err = preflight(file);
     if (err) {
@@ -473,6 +542,7 @@ export function App() {
           onToolConfirm={onToolConfirm}
           onToolCancel={onToolCancel}
           onToolRetry={onToolRetry}
+          onCsatSubmit={onCsatSubmit}
         />
 
         <QuickReplies items={quickReplies} onSend={sendUser} />

@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { Avatar, Bubble } from "@ai-kefu/ui-glass";
 
 import type { MediaContent, Message, ToolCallContent } from "../mocks/data.js";
+import { CsatBubble } from "./CsatBubble.js";
 import { FaqAnswerCard } from "./FaqAnswerCard.js";
 import { RagCitation } from "./RagCitation.js";
 import { ToolCallBadge } from "./ToolCallBadge.js";
@@ -18,6 +19,11 @@ export interface MessageListProps {
   onToolCancel?: (tool: ToolCallContent) => void;
   /** 工具失败用户点「重试」 */
   onToolRetry?: (tool: ToolCallContent) => void;
+  /** CSAT 提交回调:rating + tags + comment 由 App 组装 ws.send event.csat */
+  onCsatSubmit?: (
+    msgId: string,
+    input: { rating: number; tags: string[]; comment?: string },
+  ) => void;
 }
 
 export function MessageList({
@@ -28,6 +34,7 @@ export function MessageList({
   onToolConfirm,
   onToolCancel,
   onToolRetry,
+  onCsatSubmit,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -57,6 +64,7 @@ export function MessageList({
           onToolConfirm={onToolConfirm}
           onToolCancel={onToolCancel}
           onToolRetry={onToolRetry}
+          onCsatSubmit={onCsatSubmit}
         />
       ))}
       <div ref={bottomRef} />
@@ -72,6 +80,7 @@ function Row({
   onToolConfirm,
   onToolCancel,
   onToolRetry,
+  onCsatSubmit,
 }: {
   m: Message;
   onSend: (t: string) => void;
@@ -80,6 +89,7 @@ function Row({
   onToolConfirm?: (tool: ToolCallContent) => void;
   onToolCancel?: (tool: ToolCallContent) => void;
   onToolRetry?: (tool: ToolCallContent) => void;
+  onCsatSubmit?: (msgId: string, input: { rating: number; tags: string[]; comment?: string }) => void;
 }) {
   if (m.kind === "faq") {
     return (
@@ -106,6 +116,14 @@ function Row({
   }
   if (m.kind === "image" || m.kind === "file") {
     return <MediaBubble m={m} />;
+  }
+  if (m.kind === "csat") {
+    return (
+      <CsatBubble
+        csat={m.csat}
+        onSubmit={(input) => onCsatSubmit?.(m.id, input)}
+      />
+    );
   }
   if (m.role === "system") {
     return <Bubble role="system">{m.text}</Bubble>;
