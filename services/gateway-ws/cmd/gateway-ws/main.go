@@ -5,6 +5,8 @@
 //	gateway-ws                                        # :8080,EchoRouter,单进程
 //	SESSION_SVC_URL=http://session-svc:8081 \
 //	  gateway-ws                                       # 接入 session-svc 持久化
+//	AI_HUB_URL=http://ai-hub:8091 \
+//	  gateway-ws                                       # 启用 AI 流式回复
 //	GATEWAY_REGISTRY=mem GATEWAY_NODE_ID=gw-1 \
 //	  gateway-ws                                       # 启用跨节点 Registry(进程内 mem 演示)
 //	GATEWAY_REGISTRY=redis REDIS_ADDR=redis:6379 \
@@ -18,6 +20,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ai-kefu/gateway-ws/internal/aihub"
 	"github.com/ai-kefu/gateway-ws/internal/config"
 	"github.com/ai-kefu/gateway-ws/internal/dispatch"
 	"github.com/ai-kefu/gateway-ws/internal/hub"
@@ -59,17 +62,30 @@ func main() {
 }
 
 // buildRouter 按配置组装 Router。
+//
+// 组合策略:
+//
+//	[Session?]  → 持久化 user 消息(SESSION_SVC_URL 配置时)
+//	[AI?]       → 调 ai-hub 流式回复(AI_HUB_URL 配置时)
+//	[Echo]      → 兜底:仅在没有 AI 时启用,避免重复回复
 func buildRouter(cfg config.Config, logger *slog.Logger) wsconn.Router {
-	if cfg.SessionSvcURL == "" {
-		logger.Info("router=echo (no SESSION_SVC_URL)")
-		return router.NewEcho()
+	chain := []wsconn.Router{}
+
+	if cfg.SessionSvcURL != "" {
+		logger.Info("router: +session", "session_svc", cfg.SessionSvcURL)
+		chain = append(chain, router.NewSession(sessionclient.New(cfg.SessionSvcURL), logger))
 	}
-	logger.Info("router=session+echo", "session_svc", cfg.SessionSvcURL)
-	cli := sessionclient.New(cfg.SessionSvcURL)
-	return router.NewComposite(
-		router.NewSession(cli, logger),
-		router.NewEcho(),
-	)
+	if cfg.AIHubURL != "" {
+		logger.Info("router: +ai", "ai_hub", cfg.AIHubURL)
+		chain = append(chain, router.NewAI(aihub.New(cfg.AIHubURL), logger))
+	} else {
+		logger.Info("router: +echo (no AI_HUB_URL)")
+		chain = append(chain, router.NewEcho())
+	}
+	if len(chain) == 1 {
+		return chain[0]
+	}
+	return router.NewComposite(chain...)
 }
 
 // buildRegistry 按配置选择 Registry。

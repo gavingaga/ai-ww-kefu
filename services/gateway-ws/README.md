@@ -33,6 +33,7 @@ make run             # 默认 :8080,/v1/ws
 | `GATEWAY_MAX_PENDING` | `1024` | 单连接发送队列上限 |
 | `GATEWAY_ALLOWED_ORIGINS` | (空,放开) | 逗号分隔 Origin 白名单 |
 | `SESSION_SVC_URL` | (空) | 接入 session-svc 写入消息 |
+| `AI_HUB_URL` | (空) | 接入 ai-hub /v1/ai/infer,启用流式 AI 回复 |
 | `GATEWAY_REGISTRY` | `noop` | `noop` / `mem` / `redis` |
 | `GATEWAY_NODE_ID` | `hostname` | 跨节点 Registry 中本节点的 ID |
 | `REDIS_ADDR` | (空) | `redis:6379`,需 `-tags redis` 编译 |
@@ -72,9 +73,38 @@ GATEWAY_REGISTRY=redis REDIS_ADDR=redis:6379 \
   GATEWAY_NODE_ID=gw-prod-a ./bin/gateway-ws
 ```
 
+## AI 流式(M2 起接入)
+
+`internal/aihub` + `internal/router/ai.go`:
+
+- 客户端发 `msg.text` → `AIRouter.Handle` 立即返回(不阻塞 readLoop),起后台 goroutine
+  调 `ai-hub /v1/ai/infer`(SSE)
+- 解析事件:`decision`(暂复用 `event.queue_update` 通道下发给客户端)/ `token`
+  (转 `msg.chunk { chunk, end:false }`)/ `handoff`(下系统消息 + 关流)/ `done`(关流)
+- 失败一律下"AI 暂不可用"+ 关流,不让客户端永久 thinking
+
+## 联调三段式
+
+```bash
+# 终端 1:llm-router(可设 LLM_MOCK=1 不打外网)
+LLM_MOCK=1 uv run --package llm-router python -m llm_router.main         # :8090
+
+# 终端 2:ai-hub
+LLM_ROUTER_URL=http://localhost:8090 \
+  uv run --package ai-hub python -m ai_hub.main                          # :8091
+
+# 终端 3:gateway-ws
+SESSION_SVC_URL=http://localhost:8081 AI_HUB_URL=http://localhost:8091 \
+  make run                                                                # :8080
+
+# 终端 4:web-c
+VITE_WS_URL=ws://localhost:8080/v1/ws pnpm --filter @ai-kefu/web-c dev
+```
+
 ## 后续
 
 | Ticket | 改动 |
 |--------|------|
 | T-103 | 背压 / 限流 / 单节点 50k 连接压测 |
-| M2 | 用 ai-hub 流式 Router 替换 EchoRouter,发到 chat.in,从 chat.out 拉服务端帧 |
+| T-208/213 | RAG / FAQ 通道接入 ai-hub |
+| T-210/212 | 工具调用循环 + Handoff Packet |

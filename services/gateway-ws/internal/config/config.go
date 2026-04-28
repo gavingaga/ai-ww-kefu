@@ -25,7 +25,8 @@ type Config struct {
 	GracefulShutdownTime time.Duration
 
 	// 后端依赖
-	SessionSvcURL string // session-svc base URL,空则不接入(只跑 EchoRouter)
+	SessionSvcURL string // session-svc base URL,空则不接入
+	AIHubURL      string // ai-hub base URL,配置则启用 AIRouter 流式回复;否则 EchoRouter 兜底
 	NodeID        string // 当前节点 ID(用于 Registry 跨节点路由),空则按 hostname 生成
 	RegistryType  string // noop / mem / redis,默认 noop(单进程)
 	RedisAddr     string // Registry=redis 时使用
@@ -49,6 +50,7 @@ func Load() Config {
 		IdleSessionTimeoutS:  envInt("GATEWAY_IDLE_TIMEOUT_S", 600),
 		GracefulShutdownTime: 15 * time.Second,
 		SessionSvcURL:        envStr("SESSION_SVC_URL", ""),
+		AIHubURL:             envStr("AI_HUB_URL", ""),
 		NodeID:               envStr("GATEWAY_NODE_ID", ""),
 		RegistryType:         envStr("GATEWAY_REGISTRY", "noop"),
 		RedisAddr:            envStr("REDIS_ADDR", ""),
