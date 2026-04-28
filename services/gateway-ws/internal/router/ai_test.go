@@ -86,14 +86,32 @@ func TestAIPersistTextWritesAndNotifies(t *testing.T) {
 		agentbff.New(bffSrv.URL, ""),
 		nil,
 	)
+	ragChunks := []map[string]interface{}{
+		{
+			"chunk_id": "kbA-3",
+			"doc_id":   "doc-buffer",
+			"title":    "卡顿排查标准答复",
+			"content":  "建议切到 480p / 关闭硬件加速 / 切节点。",
+			"score":    0.78,
+		},
+		{
+			"chunk_id": "kbA-7",
+			"title":    "网络诊断",
+			"content":  "ping live-cdn.example.com 检查丢包。",
+			"score":    0.62,
+		},
+	}
+	toolCalls := []map[string]interface{}{
+		{"name": "diagnose_stream", "ok": true, "result": map[string]interface{}{"rtt_ms": 280}},
+	}
 	ai.persistAIText(
 		context.Background(),
 		"ses_t", "u_1",
 		"建议切到 480p 试试",
 		"llm_general", "default",
 		"卡顿排查标准答复", 0.78,
-		nil,
-		nil,
+		ragChunks,
+		toolCalls,
 	)
 
 	// persistAndNotify 异步,等一会
@@ -117,6 +135,19 @@ func TestAIPersistTextWritesAndNotifies(t *testing.T) {
 	}
 	if req.AIMeta["rag_top_title"] != "卡顿排查标准答复" {
 		t.Fatalf("rag meta missing: %+v", req.AIMeta)
+	}
+	if chunks, ok := req.AIMeta["rag_chunks"].([]interface{}); !ok || len(chunks) != 2 {
+		// JSON 反序列化后切片元素是 interface{} — 取第一个验证
+		raw, _ := json.Marshal(req.AIMeta["rag_chunks"])
+		if !strings.Contains(string(raw), "卡顿排查标准答复") || !strings.Contains(string(raw), "kbA-7") {
+			t.Fatalf("rag_chunks missing or malformed: %s", raw)
+		}
+	}
+	if calls, ok := req.AIMeta["tool_calls"].([]interface{}); !ok || len(calls) != 1 {
+		raw, _ := json.Marshal(req.AIMeta["tool_calls"])
+		if !strings.Contains(string(raw), "diagnose_stream") {
+			t.Fatalf("tool_calls missing: %s", raw)
+		}
 	}
 
 	select {

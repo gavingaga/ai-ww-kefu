@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Avatar, Bubble, Capsule, GlassCard } from "@ai-kefu/ui-glass";
 
 import { closeSession, listMessages, reply, transferToAi } from "../api/client.js";
-import type { MessageView } from "../api/types.js";
+import type { AiMeta, MessageView, RagChunkRef } from "../api/types.js";
 
 export interface ConversationViewProps {
   agentId: number;
@@ -270,6 +270,8 @@ function Row({ m }: { m: MessageView }) {
     return <Bubble role="system">{text}</Bubble>;
   }
   const isAgent = m.role === "agent";
+  const showRag = m.role === "ai" && Array.isArray(m.aiMeta?.rag_chunks) && (m.aiMeta?.rag_chunks?.length ?? 0) > 0;
+  const showTools = m.role === "ai" && Array.isArray(m.aiMeta?.tool_calls) && (m.aiMeta?.tool_calls?.length ?? 0) > 0;
   return (
     <div
       style={{
@@ -286,9 +288,85 @@ function Row({ m }: { m: MessageView }) {
           alt={m.role === "ai" ? "AI" : "用户"}
         />
       )}
-      <Bubble role={m.role === "agent" ? "user" : m.role}>
-        <span style={{ whiteSpace: "pre-wrap" }}>{text}</span>
-      </Bubble>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, maxWidth: "85%" }}>
+        <Bubble role={m.role === "agent" ? "user" : m.role}>
+          <span style={{ whiteSpace: "pre-wrap" }}>{text}</span>
+        </Bubble>
+        {showRag ? <RagInlineRef meta={m.aiMeta as AiMeta} /> : null}
+        {showTools ? <ToolInlineRef meta={m.aiMeta as AiMeta} /> : null}
+      </div>
     </div>
+  );
+}
+
+function RagInlineRef({ meta }: { meta: AiMeta }) {
+  const [open, setOpen] = useState(false);
+  const chunks = (meta.rag_chunks ?? []) as RagChunkRef[];
+  if (!chunks.length) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen((v) => !v)}
+      aria-expanded={open}
+      style={{
+        textAlign: "left",
+        padding: "6px 10px",
+        background: "var(--color-surface-alt)",
+        border: "1px solid var(--color-border)",
+        borderRadius: 8,
+        color: "var(--color-text-secondary)",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      <span aria-hidden>📚 </span>
+      引用 {chunks.length} 条
+      {meta.rag_top_title ? ` · 主要来自《${meta.rag_top_title}》` : ""}
+      {typeof meta.rag_score === "number" ? `(score ${meta.rag_score.toFixed(2)})` : ""}
+      <span style={{ marginLeft: 8, color: "var(--color-text-tertiary)" }}>
+        {open ? "收起" : "展开"}
+      </span>
+      {open ? (
+        <ol style={{ margin: "6px 0 0", paddingLeft: 18, lineHeight: 1.5 }}>
+          {chunks.slice(0, 5).map((c, i) => (
+            <li key={c.chunk_id ?? i} style={{ marginBottom: 4 }}>
+              <strong>{c.title || `chunk ${i + 1}`}</strong>
+              {typeof c.score === "number" ? (
+                <span style={{ marginLeft: 6, color: "var(--color-text-tertiary)" }}>
+                  {c.score.toFixed(2)}
+                </span>
+              ) : null}
+              <div style={{ color: "var(--color-text-tertiary)", fontSize: 11, marginTop: 2 }}>
+                {(c.content ?? "").slice(0, 160)}
+                {(c.content?.length ?? 0) > 160 ? "…" : ""}
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </button>
+  );
+}
+
+function ToolInlineRef({ meta }: { meta: AiMeta }) {
+  const calls = meta.tool_calls ?? [];
+  if (!calls.length) return null;
+  const okN = calls.filter((c) => c.ok !== false).length;
+  const failN = calls.length - okN;
+  return (
+    <span
+      style={{
+        alignSelf: "flex-start",
+        fontSize: 12,
+        color: "var(--color-text-tertiary)",
+        padding: "2px 8px",
+        border: "1px solid var(--color-border)",
+        borderRadius: 999,
+        background: "var(--color-surface-alt)",
+      }}
+      title={calls.map((c) => c.name).join(", ")}
+    >
+      🔧 工具 {calls.length} 次{failN > 0 ? `(${failN} 失败)` : ""}
+    </span>
   );
 }

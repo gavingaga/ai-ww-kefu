@@ -51,6 +51,27 @@ export interface InboxResponse {
   active: SessionView[];
 }
 
+export interface RagChunkRef {
+  chunk_id?: string;
+  doc_id?: string;
+  kb_id?: string;
+  title?: string;
+  content?: string;
+  score?: number;
+}
+
+export interface AiMeta {
+  decision_action?: string;
+  decision_reason?: string;
+  ref_user_msg_id?: string;
+  tokens_out?: number;
+  rag_top_title?: string;
+  rag_score?: number;
+  rag_chunks?: RagChunkRef[];
+  tool_calls?: Array<{ name?: string; args?: unknown; ok?: boolean; result?: unknown; error?: string }>;
+  [k: string]: unknown;
+}
+
 export interface MessageView {
   id: string;
   sessionId: string;
@@ -62,6 +83,8 @@ export interface MessageView {
   content?: { text?: string; [k: string]: unknown };
   status?: string;
   createdAt?: string;
+  /** AI 角色专属:决策、RAG 引用、工具调用记录(由 gateway-ws 写入)。 */
+  aiMeta?: AiMeta;
 }
 
 export interface HistoryResponse {
