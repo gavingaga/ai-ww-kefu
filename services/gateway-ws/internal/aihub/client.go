@@ -71,6 +71,10 @@ type Event struct {
 	Result      interface{}            `json:"result,omitempty"`
 	ErrorDetail string                 `json:"error,omitempty"`
 
+	// RAG 字段(event="rag_chunks" 时填充)
+	TopTitle string                   `json:"top_title,omitempty"`
+	Chunks   []map[string]interface{} `json:"chunks,omitempty"`
+
 	Raw map[string]interface{} `json:"-"`
 }
 

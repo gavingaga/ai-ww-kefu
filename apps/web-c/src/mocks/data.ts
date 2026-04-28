@@ -79,6 +79,20 @@ export interface ToolCallContent {
   label?: string;
 }
 
+export interface RagChunk {
+  chunk_id?: string;
+  doc_id?: string;
+  title?: string;
+  content?: string;
+  score?: number;
+}
+
+export interface RagCitationContent {
+  topTitle?: string;
+  score?: number;
+  chunks: RagChunk[];
+}
+
 export type Message =
   | {
       kind: "text";
@@ -101,6 +115,13 @@ export type Message =
       role: "ai";
       ts: number;
       tool: ToolCallContent;
+    }
+  | {
+      kind: "rag";
+      id: string;
+      role: "ai";
+      ts: number;
+      rag: RagCitationContent;
     };
 
 export const initialMessages: Message[] = [

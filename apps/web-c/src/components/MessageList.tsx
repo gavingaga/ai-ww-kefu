@@ -4,6 +4,7 @@ import { Avatar, Bubble } from "@ai-kefu/ui-glass";
 
 import type { Message } from "../mocks/data.js";
 import { FaqAnswerCard } from "./FaqAnswerCard.js";
+import { RagCitation } from "./RagCitation.js";
 import { ToolCallBadge } from "./ToolCallBadge.js";
 
 export interface MessageListProps {
@@ -69,6 +70,9 @@ function Row({
   }
   if (m.kind === "tool") {
     return <ToolCallBadge tool={m.tool} />;
+  }
+  if (m.kind === "rag") {
+    return <RagCitation rag={m.rag} />;
   }
   if (m.role === "system") {
     return <Bubble role="system">{m.text}</Bubble>;

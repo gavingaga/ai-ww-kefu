@@ -43,6 +43,7 @@ const (
 	TypeEventBridgeCall     = "event.bridge_call"
 	TypeEventToolCall       = "event.tool_call"
 	TypeEventHandoffPacket  = "event.handoff_packet"
+	TypeEventRAGChunks      = "event.rag_chunks"
 )
 
 // Frame 通用帧。

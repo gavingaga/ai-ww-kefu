@@ -131,6 +131,18 @@ func (r *AI) streamReply(ctx context.Context, conn *wsconn.Conn, sid, refMsgID, 
 				SessionID: sid,
 				Payload:   body,
 			})
+		case "rag_chunks":
+			// RAG 命中 — 把 chunks 透传给客户端,UI 在 AI 答复下方展示「📚 引用」
+			body, _ := json.Marshal(map[string]interface{}{
+				"score":     ev.Score,
+				"top_title": ev.TopTitle,
+				"chunks":    ev.Chunks,
+			})
+			conn.SendFrame(frame.Frame{
+				Type:      frame.TypeEventRAGChunks,
+				SessionID: sid,
+				Payload:   body,
+			})
 		case "handoff":
 			// 转人工系统消息
 			body, _ := json.Marshal(map[string]interface{}{

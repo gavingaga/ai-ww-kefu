@@ -29,7 +29,8 @@
         "event.play_diagnostic",
         "event.bridge_call",
         "event.tool_call",
-        "event.handoff_packet"
+        "event.handoff_packet",
+        "event.rag_chunks"
       ]
     },
     "seq": { "type": "integer", "minimum": 0 },
@@ -265,6 +266,26 @@
               "knowledge_hits": { "type": "array", "items": { "type": "object" } },
               "live_context": { "type": "object", "additionalProperties": true },
               "skill_group_hint": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "event.rag_chunks" } }, "required": ["type"] },
+      "then": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["score"],
+            "properties": {
+              "score": { "type": "number" },
+              "top_title": { "type": "string" },
+              "chunks": {
+                "type": "array",
+                "items": { "type": "object", "additionalProperties": true }
+              }
             }
           }
         }

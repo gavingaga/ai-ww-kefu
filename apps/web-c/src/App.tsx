@@ -103,6 +103,26 @@ export function App() {
         ]);
         return;
       }
+      // 3.1) RAG 引用(AI 答复时附带的知识库引用)
+      if (f.type === "event.rag_chunks") {
+        const p = f.payload ?? {};
+        const chunks = Array.isArray(p.chunks) ? p.chunks : [];
+        setMessages((prev) => [
+          ...prev,
+          {
+            kind: "rag",
+            id: `rag-${f.seq ?? Date.now()}`,
+            role: "ai",
+            ts: f.ts ?? Date.now(),
+            rag: {
+              topTitle: typeof p.top_title === "string" ? p.top_title : undefined,
+              score: typeof p.score === "number" ? p.score : undefined,
+              chunks: chunks as Array<Record<string, unknown>>,
+            },
+          },
+        ]);
+        return;
+      }
       // 4) 流式结束 — 占位思考气泡转正常(若仍为空,显示提示)
       if (f.type === "msg.chunk" && f.payload?.end) {
         setMessages((prev) =>
