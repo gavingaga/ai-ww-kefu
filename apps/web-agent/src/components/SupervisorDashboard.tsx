@@ -1,14 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Capsule, GlassCard } from "@ai-kefu/ui-glass";
 
-import { dashboard, observe } from "../api/client.js";
+import { dashboard, observe, steal, unobserve } from "../api/client.js";
 import type {
   DashboardAgentRow,
   DashboardData,
   DashboardKpi,
   DashboardQueueRow,
 } from "../api/types.js";
+
+interface ActiveSessionRow {
+  sessionId: string;
+  agent: DashboardAgentRow;
+  observers: number[];
+}
 
 /**
  * 主管视图实时大屏 — 仅 role=SUPERVISOR 时呈现。
@@ -80,12 +86,40 @@ export function SupervisorDashboard({
     );
   }
 
+  const refreshNow = async () => {
+    try {
+      const d = await dashboard();
+      setData(d);
+    } catch (err) {
+      console.error("[dashboard refresh]", err);
+    }
+  };
+
   const handleObserve = async (sid: string) => {
     try {
       await observe(supervisorId, sid);
       onObserveSession?.(sid);
     } catch (err) {
       console.error("[observe]", err);
+    }
+  };
+
+  const handleUnobserve = async (sid: string) => {
+    try {
+      await unobserve(supervisorId, sid);
+      await refreshNow();
+    } catch (err) {
+      console.error("[unobserve]", err);
+    }
+  };
+
+  const handleSteal = async (sid: string, fromAgentId: number) => {
+    try {
+      await steal(supervisorId, fromAgentId, sid);
+      onObserveSession?.(sid);
+      await refreshNow();
+    } catch (err) {
+      console.error("[steal]", err);
     }
   };
 
@@ -103,15 +137,59 @@ export function SupervisorDashboard({
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
+          gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)",
           gap: 12,
           minHeight: 0,
         }}
       >
         <AgentTable agents={data.agents} />
-        <QueueTable queue={data.queue} onObserve={handleObserve} />
+        <QueueTable
+          queue={data.queue}
+          onObserve={handleObserve}
+          onSteal={(sid) => handleSteal(sid, 0)}
+        />
+        <ActiveSessionsTable
+          rows={collectActiveSessions(data.agents)}
+          observingSet={observingSelfSessions(data.agents, supervisorId)}
+          onObserve={handleObserve}
+          onUnobserve={handleUnobserve}
+          onSteal={handleSteal}
+        />
+        <ObservingSelfPanel
+          sessions={observingSelfSessions(data.agents, supervisorId)}
+          onJump={(sid) => onObserveSession?.(sid)}
+          onUnobserve={handleUnobserve}
+        />
       </div>
     </div>
   );
+}
+
+function collectActiveSessions(agents: DashboardAgentRow[]): ActiveSessionRow[] {
+  const out: ActiveSessionRow[] = [];
+  // 主管观察其它会话 ≠ 该会话归该主管承接,所以 observers 只从其他坐席的 observing_session_ids 推出
+  const observerMap = new Map<string, number[]>();
+  for (const a of agents) {
+    for (const sid of a.observing_session_ids ?? []) {
+      const arr = observerMap.get(sid) ?? [];
+      arr.push(a.id);
+      observerMap.set(sid, arr);
+    }
+  }
+  for (const a of agents) {
+    for (const sid of a.active_session_ids ?? []) {
+      out.push({ sessionId: sid, agent: a, observers: observerMap.get(sid) ?? [] });
+    }
+  }
+  return out.sort((x, y) => x.sessionId.localeCompare(y.sessionId));
+}
+
+function observingSelfSessions(
+  agents: DashboardAgentRow[],
+  supervisorId: number,
+): string[] {
+  const me = agents.find((a) => a.id === supervisorId);
+  return me?.observing_session_ids ?? [];
 }
 
 // ───── KPI ─────
@@ -313,9 +391,12 @@ function AgentTable({ agents }: { agents: DashboardAgentRow[] }) {
 function QueueTable({
   queue,
   onObserve,
+  onSteal,
 }: {
   queue: DashboardQueueRow[];
   onObserve: (sid: string) => void;
+  /** 主管直接从队列拉接(steal,from_agent_id=0 表示无前任承接者) */
+  onSteal: (sid: string) => void;
 }) {
   return (
     <GlassCard radius={14} style={tableCardStyle}>
@@ -363,9 +444,12 @@ function QueueTable({
                   <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>
                     {q.session_id.slice(0, 18)}…
                   </td>
-                  <td style={tdStyle}>
+                  <td style={{ ...tdStyle, display: "flex", gap: 4 }}>
                     <Capsule size="sm" variant="ghost" onClick={() => onObserve(q.session_id)}>
                       监听
+                    </Capsule>
+                    <Capsule size="sm" variant="primary" onClick={() => onSteal(q.session_id)}>
+                      抢接
                     </Capsule>
                   </td>
                 </tr>
@@ -373,6 +457,170 @@ function QueueTable({
             )}
           </tbody>
         </table>
+      </div>
+    </GlassCard>
+  );
+}
+
+// ───── 活跃会话表 ─────
+
+function ActiveSessionsTable({
+  rows,
+  observingSet,
+  onObserve,
+  onUnobserve,
+  onSteal,
+}: {
+  rows: ActiveSessionRow[];
+  observingSet: string[];
+  onObserve: (sid: string) => void;
+  onUnobserve: (sid: string) => void;
+  onSteal: (sid: string, fromAgentId: number) => void;
+}) {
+  const observingNow = useMemo(() => new Set(observingSet), [observingSet]);
+  return (
+    <GlassCard radius={14} style={tableCardStyle}>
+      <header style={tableHeaderStyle}>
+        活跃会话({rows.length})· 我观察中 {observingSet.length}
+      </header>
+      <div style={tableBodyStyle}>
+        <table style={tableStyle}>
+          <thead>
+            <tr style={tableTrStyle}>
+              <th style={thStyle}>会话</th>
+              <th style={thStyle}>承接坐席</th>
+              <th style={thStyle}>主管观察</th>
+              <th style={thStyle}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={4} style={emptyTdStyle}>
+                  暂无在岗会话
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => {
+                const mine = observingNow.has(r.sessionId);
+                return (
+                  <tr
+                    key={r.sessionId}
+                    style={
+                      mine
+                        ? {
+                            background:
+                              "color-mix(in srgb, var(--color-primary) 8%, transparent)",
+                          }
+                        : undefined
+                    }
+                  >
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>
+                      {r.sessionId.slice(0, 18)}…
+                    </td>
+                    <td style={tdStyle}>
+                      {r.agent.nickname}{" "}
+                      <span style={{ color: "var(--color-text-tertiary)", fontSize: 11 }}>
+                        #{r.agent.id} · {r.agent.status}
+                      </span>
+                    </td>
+                    <td style={{ ...tdStyle, color: "var(--color-text-secondary)" }}>
+                      {r.observers.length === 0 ? "—" : r.observers.join(",")}
+                    </td>
+                    <td style={{ ...tdStyle, display: "flex", gap: 4 }}>
+                      {mine ? (
+                        <Capsule
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onUnobserve(r.sessionId)}
+                        >
+                          取消监听
+                        </Capsule>
+                      ) : (
+                        <Capsule
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onObserve(r.sessionId)}
+                        >
+                          监听
+                        </Capsule>
+                      )}
+                      <Capsule
+                        size="sm"
+                        variant="primary"
+                        onClick={() => onSteal(r.sessionId, r.agent.id)}
+                        title={`从 ${r.agent.nickname} 接走`}
+                      >
+                        抢接
+                      </Capsule>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </GlassCard>
+  );
+}
+
+// ───── 当前主管观察列表(快速跳转) ─────
+
+function ObservingSelfPanel({
+  sessions,
+  onJump,
+  onUnobserve,
+}: {
+  sessions: string[];
+  onJump: (sid: string) => void;
+  onUnobserve: (sid: string) => void;
+}) {
+  return (
+    <GlassCard radius={14} style={tableCardStyle}>
+      <header style={tableHeaderStyle}>我观察中({sessions.length})</header>
+      <div style={{ ...tableBodyStyle, padding: 12, display: "flex", flexWrap: "wrap", gap: 6, alignContent: "flex-start" }}>
+        {sessions.length === 0 ? (
+          <span style={{ color: "var(--color-text-tertiary)", fontSize: 12 }}>
+            暂未观察任何会话。从「排队」或「活跃会话」点「监听」。
+          </span>
+        ) : (
+          sessions.map((sid) => (
+            <span
+              key={sid}
+              style={{
+                display: "inline-flex",
+                gap: 6,
+                alignItems: "center",
+                padding: "4px 8px 4px 10px",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-capsule)",
+                background:
+                  "color-mix(in srgb, var(--color-primary) 6%, var(--color-surface))",
+                fontSize: 12,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => onJump(sid)}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-mono)",
+                  color: "var(--color-text-primary)",
+                  padding: 0,
+                }}
+                title="跳到会话"
+              >
+                {sid}
+              </button>
+              <Capsule size="sm" variant="outline" onClick={() => onUnobserve(sid)}>
+                ✕
+              </Capsule>
+            </span>
+          ))
+        )}
       </div>
     </GlassCard>
   );
