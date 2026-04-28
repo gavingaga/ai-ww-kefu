@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 
 import { Avatar, Bubble } from "@ai-kefu/ui-glass";
 
-import type { Message, ToolCallContent } from "../mocks/data.js";
+import type { MediaContent, Message, ToolCallContent } from "../mocks/data.js";
 import { FaqAnswerCard } from "./FaqAnswerCard.js";
 import { RagCitation } from "./RagCitation.js";
 import { ToolCallBadge } from "./ToolCallBadge.js";
@@ -104,6 +104,9 @@ function Row({
   if (m.kind === "rag") {
     return <RagCitation rag={m.rag} />;
   }
+  if (m.kind === "image" || m.kind === "file") {
+    return <MediaBubble m={m} />;
+  }
   if (m.role === "system") {
     return <Bubble role="system">{m.text}</Bubble>;
   }
@@ -131,4 +134,70 @@ function Row({
       </Bubble>
     </div>
   );
+}
+
+function MediaBubble({ m }: { m: Extract<Message, { kind: "image" | "file" }> }) {
+  const isUser = m.role === "user";
+  const isImage = m.kind === "image";
+  const media: MediaContent = m.media;
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        alignItems: "flex-end",
+        flexDirection: isUser ? "row-reverse" : "row",
+      }}
+    >
+      {!isUser && <Avatar size={28} fallback={m.role === "ai" ? "AI" : "客"} alt={m.role} />}
+      <div
+        style={{
+          maxWidth: "72%",
+          padding: 8,
+          background: isUser
+            ? "linear-gradient(135deg, var(--bubble-user-from), var(--bubble-user-to))"
+            : "var(--bubble-system)",
+          color: isUser ? "#fff" : "var(--color-text-primary)",
+          borderRadius: "var(--radius-bubble)",
+          border: "1px solid var(--color-border)",
+        }}
+      >
+        {isImage ? (
+          <img
+            src={media.url}
+            alt={media.filename ?? "image"}
+            style={{
+              maxWidth: 240,
+              maxHeight: 240,
+              borderRadius: 8,
+              display: "block",
+              opacity: media.progress != null && media.progress < 100 ? 0.5 : 1,
+            }}
+          />
+        ) : (
+          <a
+            href={media.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "inherit", textDecoration: "underline" }}
+          >
+            📄 {media.filename ?? "文件"}
+          </a>
+        )}
+        <div style={{ marginTop: 4, fontSize: 11, opacity: 0.8 }}>
+          {media.size ? formatSize(media.size) : null}
+          {media.progress != null && media.progress < 100 ? (
+            <> · 上传中 {media.progress}%</>
+          ) : null}
+          {media.error ? <span style={{ color: "#ffb"}}> · 失败:{media.error}</span> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatSize(b: number): string {
+  if (b < 1024) return b + " B";
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + " KB";
+  return (b / 1024 / 1024).toFixed(1) + " MB";
 }

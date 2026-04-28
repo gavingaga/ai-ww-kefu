@@ -4,6 +4,8 @@ import { Capsule } from "@ai-kefu/ui-glass";
 
 export interface ComposerProps {
   onSend: (text: string) => void;
+  /** 附件按钮回调:用户选好文件后触发,App 走 upload-svc 直传流程 */
+  onPickFile?: (file: File) => void;
   placeholder?: string;
   disabled?: boolean;
 }
@@ -14,9 +16,10 @@ export interface ComposerProps {
  * - Mobile: 系统键盘"发送"由 onKeyDown 处理(同 Enter)
  * - 附件按钮 在 M0 占位,文件上传 Story T-401 接入。
  */
-export function Composer({ onSend, placeholder = "输入消息...", disabled }: ComposerProps) {
+export function Composer({ onSend, onPickFile, placeholder = "输入消息...", disabled }: ComposerProps) {
   const [value, setValue] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function send() {
     const v = value.trim();
@@ -55,17 +58,29 @@ export function Composer({ onSend, placeholder = "输入消息...", disabled }: 
         WebkitBackdropFilter: "blur(var(--blur-glass)) saturate(180%)",
       }}
     >
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,video/mp4"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f && onPickFile) onPickFile(f);
+          if (fileRef.current) fileRef.current.value = "";
+        }}
+      />
       <button
         aria-label="添加附件"
-        disabled={disabled}
+        disabled={disabled || !onPickFile}
         title="图片 / 文件"
+        onClick={() => fileRef.current?.click()}
         style={{
           width: 36,
           height: 36,
           borderRadius: "50%",
           border: "1px solid var(--color-border)",
           background: "transparent",
-          cursor: disabled ? "not-allowed" : "pointer",
+          cursor: disabled || !onPickFile ? "not-allowed" : "pointer",
           fontSize: 18,
           flex: "none",
         }}

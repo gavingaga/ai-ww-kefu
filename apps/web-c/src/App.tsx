@@ -15,6 +15,7 @@ import {
   type Message,
   type ToolCallContent,
 } from "./mocks/data.js";
+import { preflight, uploadFile } from "./upload/uploadFile.js";
 import { createWs } from "./ws/createClient.js";
 
 const SESSION_ID = "ses_demo";
@@ -322,6 +323,94 @@ export function App() {
     [sendUser],
   );
 
+  const onPickFile = useCallback(async (file: File) => {
+    const err = preflight(file);
+    if (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          kind: "text",
+          id: `sys-up-${Date.now()}`,
+          role: "system",
+          text: `上传失败:${err}`,
+          ts: Date.now(),
+        },
+      ]);
+      return;
+    }
+    const id = `up-${Date.now()}`;
+    const isImage = file.type.startsWith("image/");
+    setMessages((prev) => [
+      ...prev,
+      {
+        kind: isImage ? "image" : "file",
+        id,
+        role: "user",
+        ts: Date.now(),
+        media: {
+          url: URL.createObjectURL(file),
+          filename: file.name,
+          size: file.size,
+          contentType: file.type,
+          progress: 0,
+        },
+      },
+    ]);
+    try {
+      const r = await uploadFile(file, (p) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            (m.kind === "image" || m.kind === "file") && m.id === id
+              ? { ...m, media: { ...m.media, progress: p } }
+              : m,
+          ),
+        );
+      });
+      // 把本地预览替换成 CDN URL,清空 progress
+      setMessages((prev) =>
+        prev.map((m) =>
+          (m.kind === "image" || m.kind === "file") && m.id === id
+            ? {
+                ...m,
+                media: {
+                  ...m.media,
+                  url: r.url,
+                  progress: undefined,
+                  contentType: r.contentType ?? m.media.contentType,
+                },
+              }
+            : m,
+        ),
+      );
+      // 通知 ws 一帧 msg.image / msg.file
+      const ws = wsRef.current;
+      if (ws && ws.status().state === "open") {
+        ws.send({
+          type: isImage ? "msg.image" : "msg.file",
+          session_id: SESSION_ID,
+          payload: {
+            url: r.url,
+            filename: file.name,
+            size: r.size ?? file.size,
+            content_type: r.contentType ?? file.type,
+            client_msg_id: id,
+          },
+        });
+      }
+    } catch (e) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          (m.kind === "image" || m.kind === "file") && m.id === id
+            ? {
+                ...m,
+                media: { ...m.media, error: String((e as Error).message), progress: undefined },
+              }
+            : m,
+        ),
+      );
+    }
+  }, []);
+
   const openLink = useCallback((url: string) => {
     if (!/^https?:\/\//i.test(url)) return;
     // WebView 优先经 JSBridge
@@ -388,7 +477,7 @@ export function App() {
 
         <QuickReplies items={quickReplies} onSend={sendUser} />
 
-        <Composer onSend={sendUser} />
+        <Composer onSend={sendUser} onPickFile={onPickFile} />
       </GlassCard>
     </div>
   );

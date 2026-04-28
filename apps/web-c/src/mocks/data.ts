@@ -93,6 +93,17 @@ export interface RagCitationContent {
   chunks: RagChunk[];
 }
 
+export interface MediaContent {
+  url: string;
+  filename?: string;
+  size?: number;
+  contentType?: string;
+  /** 上传中的本地预览态:0~100 进度,end 后变 undefined */
+  progress?: number;
+  /** 上传错误时填,UI 给出"重试"提示 */
+  error?: string;
+}
+
 export type Message =
   | {
       kind: "text";
@@ -122,6 +133,20 @@ export type Message =
       role: "ai";
       ts: number;
       rag: RagCitationContent;
+    }
+  | {
+      kind: "image";
+      id: string;
+      role: "user" | "ai" | "agent";
+      ts: number;
+      media: MediaContent;
+    }
+  | {
+      kind: "file";
+      id: string;
+      role: "user" | "ai" | "agent";
+      ts: number;
+      media: MediaContent;
     };
 
 export const initialMessages: Message[] = [

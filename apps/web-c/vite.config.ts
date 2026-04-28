@@ -13,6 +13,12 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
+    proxy: {
+      "/v1/upload": {
+        target: process.env.VITE_UPLOAD_URL ?? "http://localhost:8088",
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     target: "es2020",
