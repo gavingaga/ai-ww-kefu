@@ -1,14 +1,16 @@
 import { useState } from "react";
 
+import { AuditPanel } from "./components/AuditPanel.js";
 import { DashboardPanel } from "./components/DashboardPanel.js";
 import { FaqPanel } from "./components/FaqPanel.js";
 import { KbDebugPanel } from "./components/KbDebugPanel.js";
 import { KbIngestPanel } from "./components/KbIngestPanel.js";
 
-type Page = "dashboard" | "kb-debug" | "kb-ingest" | "faq";
+type Page = "dashboard" | "audit" | "kb-debug" | "kb-ingest" | "faq";
 
 const NAV: Array<{ key: Page; label: string; hint: string }> = [
   { key: "dashboard", label: "运营看板", hint: "队列 / 坐席 / 负载实时态" },
+  { key: "audit", label: "审计流水", hint: "主管干预 / 坐席动作记录" },
   { key: "kb-debug", label: "KB 检索调试", hint: "向量 / BM25 / RRF / Rerank 调参" },
   { key: "kb-ingest", label: "KB 入库", hint: "新增文档 → 切片 + 嵌入" },
   { key: "faq", label: "FAQ 节点管理", hint: "树编辑 + 命中模拟器" },
@@ -59,6 +61,7 @@ export function App() {
       </aside>
       <main style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         {page === "dashboard" ? <DashboardPanel /> : null}
+        {page === "audit" ? <AuditPanel /> : null}
         {page === "kb-debug" ? <KbDebugPanel /> : null}
         {page === "kb-ingest" ? <KbIngestPanel /> : null}
         {page === "faq" ? <FaqPanel /> : null}

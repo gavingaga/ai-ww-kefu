@@ -156,3 +156,32 @@ export interface DashboardData {
   agents: DashboardAgentRow[];
   queue: DashboardQueueRow[];
 }
+
+// ───── 审计 ─────
+
+export interface AuditActor {
+  id?: number;
+  role?: "AGENT" | "SUPERVISOR" | "SYSTEM" | "ADMIN";
+  nickname?: string;
+}
+
+export interface AuditEvent {
+  id: string;
+  ts: string;
+  kind: string;
+  actor?: AuditActor;
+  sessionId?: string;
+  target?: string;
+  action?: string;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
+  ip?: string;
+  userAgent?: string;
+}
+
+export interface AuditQueryResponse {
+  items: AuditEvent[];
+  size: number;
+  capacity?: number;
+}

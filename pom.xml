@@ -37,7 +37,8 @@
         <module>services/notify-svc</module>
         <module>services/routing-svc</module>
         <module>services/agent-bff</module>
-        <!-- 后续:upload-svc / livectx-svc / tool-svc / audit-svc / report-svc -->
+        <module>services/audit-svc</module>
+        <!-- 后续:upload-svc / livectx-svc / tool-svc / report-svc -->
     </modules>
 
     <dependencyManagement>

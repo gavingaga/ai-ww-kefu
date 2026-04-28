@@ -1,4 +1,5 @@
 import type {
+  AuditQueryResponse,
   DashboardData,
   FaqPreviewResult,
   FaqTree,
@@ -89,4 +90,25 @@ export function faqPreview(query: string): Promise<FaqPreviewResult> {
 
 export function dashboard(): Promise<DashboardData> {
   return getJSON<DashboardData>("/v1/admin/dashboard");
+}
+
+// ───── Audit ─────
+
+export interface AuditQueryInput {
+  kind?: string;
+  actorId?: number;
+  sessionId?: string;
+  since?: string;
+  limit?: number;
+}
+
+export function auditQuery(q: AuditQueryInput): Promise<AuditQueryResponse> {
+  const params = new URLSearchParams();
+  if (q.kind) params.set("kind", q.kind);
+  if (q.actorId) params.set("actor_id", String(q.actorId));
+  if (q.sessionId) params.set("session_id", q.sessionId);
+  if (q.since) params.set("since", q.since);
+  if (q.limit) params.set("limit", String(q.limit));
+  const qs = params.toString();
+  return getJSON<AuditQueryResponse>("/v1/admin/audit/events" + (qs ? "?" + qs : ""));
 }

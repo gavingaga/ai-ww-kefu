@@ -10,9 +10,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.aikefu.agentbff.clients.AuditClient;
 import com.aikefu.agentbff.clients.KbClient;
 import com.aikefu.agentbff.clients.NotifyClient;
 import com.aikefu.agentbff.clients.RoutingClient;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * 管理后台 — 透传 kb-svc 等下游服务的只读 / 调试端点,避免前端直连。
@@ -26,11 +28,14 @@ public class AdminController {
   private final KbClient kb;
   private final NotifyClient notify;
   private final RoutingClient routing;
+  private final AuditClient audit;
 
-  public AdminController(KbClient kb, NotifyClient notify, RoutingClient routing) {
+  public AdminController(
+      KbClient kb, NotifyClient notify, RoutingClient routing, AuditClient audit) {
     this.kb = kb;
     this.notify = notify;
     this.routing = routing;
+    this.audit = audit;
   }
 
   // ───── 运营看板 ─────
@@ -82,5 +87,24 @@ public class AdminController {
   @PostMapping("/faq/preview")
   public Map<String, Object> faqPreview(@RequestBody Map<String, Object> body) {
     return notify.faqPreview(body);
+  }
+
+  // ───── 审计 ─────
+
+  @GetMapping("/audit/events")
+  public Map<String, Object> auditEvents(
+      @RequestParam(value = "kind", required = false) String kind,
+      @RequestParam(value = "actor_id", required = false) Long actorId,
+      @RequestParam(value = "session_id", required = false) String sessionId,
+      @RequestParam(value = "since", required = false) String since,
+      @RequestParam(value = "limit", defaultValue = "100") int limit) {
+    StringBuilder qs = new StringBuilder();
+    if (kind != null && !kind.isBlank()) qs.append("kind=").append(kind).append("&");
+    if (actorId != null) qs.append("actor_id=").append(actorId).append("&");
+    if (sessionId != null && !sessionId.isBlank())
+      qs.append("session_id=").append(sessionId).append("&");
+    if (since != null && !since.isBlank()) qs.append("since=").append(since).append("&");
+    qs.append("limit=").append(limit);
+    return audit.query(qs.toString());
   }
 }

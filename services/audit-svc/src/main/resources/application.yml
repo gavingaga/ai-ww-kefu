@@ -1,0 +1,22 @@
+server:
+  port: ${AUDIT_PORT:8085}
+  shutdown: graceful
+
+spring:
+  application:
+    name: audit-svc
+  jackson:
+    default-property-inclusion: non_null
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+
+aikefu:
+  audit:
+    # 内存环形 buffer 容量(超出按时间 evict 最老一条)
+    buffer-size: ${AUDIT_BUFFER_SIZE:5000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

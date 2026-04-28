@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
+import com.aikefu.agentbff.audit.Auditor;
 import com.aikefu.agentbff.clients.GatewayClient;
 import com.aikefu.agentbff.clients.RoutingClient;
 import com.aikefu.agentbff.clients.SessionClient;
@@ -19,25 +20,51 @@ public class AgentService {
   private final SessionClient session;
   private final AgentEventBus bus;
   private final GatewayClient gateway;
+  private final Auditor auditor;
 
   public AgentService(
       RoutingClient routing,
       SessionClient session,
       AgentEventBus bus,
-      GatewayClient gateway) {
+      GatewayClient gateway,
+      Auditor auditor) {
     this.routing = routing;
     this.session = session;
     this.bus = bus;
     this.gateway = gateway;
+    this.auditor = auditor;
   }
 
-  /** 单元测试用 — 不强依赖 SSE 总线 / Gateway 推送。 */
+  /** 单元测试用 — 不强依赖 SSE 总线 / Gateway 推送 / 审计。 */
   public AgentService(RoutingClient routing, SessionClient session) {
-    this(routing, session, new AgentEventBus(), new GatewayClient("", "", 1500));
+    this(routing, session, new AgentEventBus(), new GatewayClient("", "", 1500), null);
   }
 
   public AgentService(RoutingClient routing, SessionClient session, AgentEventBus bus) {
-    this(routing, session, bus, new GatewayClient("", "", 1500));
+    this(routing, session, bus, new GatewayClient("", "", 1500), null);
+  }
+
+  public AgentService(
+      RoutingClient routing, SessionClient session, AgentEventBus bus, GatewayClient gateway) {
+    this(routing, session, bus, gateway, null);
+  }
+
+  private void audit(
+      String kind, Long actorId, String actorRole, String sessionId, String action) {
+    if (auditor == null) return;
+    auditor.log(kind, actorId, actorRole, sessionId, action);
+  }
+
+  private void audit(
+      String kind,
+      Long actorId,
+      String actorRole,
+      String sessionId,
+      String target,
+      String action,
+      Map<String, Object> meta) {
+    if (auditor == null) return;
+    auditor.log(kind, actorId, actorRole, sessionId, target, action, meta);
   }
 
   private void inboxChanged(long... agentIds) {
@@ -163,6 +190,15 @@ public class AgentService {
   public Map<String, Object> accept(long agentId, String entryId) {
     Map<String, Object> r = routing.assign(agentId, entryId);
     inboxChanged(agentId);
+    Object sid = r == null ? null : r.get("session_id");
+    audit(
+        "session.accept",
+        agentId,
+        "AGENT",
+        sid == null ? null : String.valueOf(sid),
+        entryId,
+        "accept queue entry " + entryId,
+        null);
     return r;
   }
 
@@ -175,6 +211,7 @@ public class AgentService {
       // session 可能已 closed,这里幂等忽略
     }
     inboxChanged(agentId);
+    audit("session.close", agentId, "AGENT", sessionId, "agent close session");
     return Map.of("ok", true, "session_id", sessionId);
   }
 
@@ -182,6 +219,7 @@ public class AgentService {
   public Map<String, Object> transferToAi(long agentId, String sessionId) {
     routing.release(agentId, sessionId);
     inboxChanged(agentId);
+    audit("session.transfer_to_ai", agentId, "AGENT", sessionId, "transfer to AI");
     return Map.of("ok", true, "session_id", sessionId, "transferred", "ai");
   }
 
@@ -225,11 +263,15 @@ public class AgentService {
   // ───── 主管干预(T-302) ─────
 
   public Map<String, Object> observe(long supervisorId, String sessionId) {
-    return routing.observe(supervisorId, sessionId);
+    Map<String, Object> r = routing.observe(supervisorId, sessionId);
+    audit("supervisor.observe", supervisorId, "SUPERVISOR", sessionId, "observe");
+    return r;
   }
 
   public Map<String, Object> unobserve(long supervisorId, String sessionId) {
-    return routing.unobserve(supervisorId, sessionId);
+    Map<String, Object> r = routing.unobserve(supervisorId, sessionId);
+    audit("supervisor.unobserve", supervisorId, "SUPERVISOR", sessionId, "stop observe");
+    return r;
   }
 
   /**
@@ -247,6 +289,14 @@ public class AgentService {
             sessionId, "whisper-" + supervisorId + "-" + System.currentTimeMillis(), body);
     pushToClient(sessionId, saved, "system");
     publishSessionMessage(sessionId, saved, supervisorId);
+    audit(
+        "supervisor.whisper",
+        supervisorId,
+        "SUPERVISOR",
+        sessionId,
+        null,
+        "whisper",
+        Map.of("text", text == null ? "" : (text.length() > 200 ? text.substring(0, 200) : text)));
     return saved;
   }
 
@@ -254,6 +304,14 @@ public class AgentService {
   public Map<String, Object> steal(long supervisorId, long fromAgentId, String sessionId) {
     Map<String, Object> r = routing.transfer(fromAgentId, supervisorId, sessionId);
     inboxChanged(supervisorId, fromAgentId);
+    audit(
+        "supervisor.steal",
+        supervisorId,
+        "SUPERVISOR",
+        sessionId,
+        String.valueOf(fromAgentId),
+        "steal from " + fromAgentId,
+        Map.of("from_agent_id", fromAgentId));
     return r;
   }
 
@@ -261,6 +319,14 @@ public class AgentService {
   public Map<String, Object> transfer(long fromAgentId, long toAgentId, String sessionId) {
     Map<String, Object> r = routing.transfer(fromAgentId, toAgentId, sessionId);
     inboxChanged(fromAgentId, toAgentId);
+    audit(
+        "supervisor.transfer",
+        fromAgentId,
+        "AGENT",
+        sessionId,
+        String.valueOf(toAgentId),
+        "transfer to " + toAgentId,
+        Map.of("from_agent_id", fromAgentId, "to_agent_id", toAgentId));
     return r;
   }
 
