@@ -3,7 +3,6 @@ package com.aikefu.session.service;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.stereotype.Service;
 
@@ -38,7 +37,6 @@ public class SessionService {
                         .status(SessionStatus.AI)
                         .liveContext(liveContext)
                         .startedAt(Instant.now())
-                        .seqCounter(new AtomicLong(0))
                         .build()));
   }
 

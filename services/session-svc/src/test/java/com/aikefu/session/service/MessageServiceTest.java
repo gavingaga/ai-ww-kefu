@@ -20,8 +20,10 @@ class MessageServiceTest {
 
   @BeforeEach
   void setUp() {
-    sessionService = new SessionService(new InMemorySessionRepository(), new SessionStateMachine());
-    messageService = new MessageService(new InMemoryMessageRepository(), sessionService);
+    InMemorySessionRepository sessionRepo = new InMemorySessionRepository();
+    sessionService = new SessionService(sessionRepo, new SessionStateMachine());
+    messageService =
+        new MessageService(new InMemoryMessageRepository(), sessionService, sessionRepo);
   }
 
   @Test

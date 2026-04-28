@@ -8,8 +8,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.aikefu.session.domain.Message;
-import com.aikefu.session.domain.Session;
 import com.aikefu.session.persistence.MessageRepository;
+import com.aikefu.session.persistence.SessionRepository;
 
 /** 消息写入与历史查询。客户端 (sessionId, clientMsgId) 唯一约束做幂等。 */
 @Service
@@ -17,10 +17,15 @@ public class MessageService {
 
   private final MessageRepository repo;
   private final SessionService sessionService;
+  private final SessionRepository sessionRepo;
 
-  public MessageService(MessageRepository repo, SessionService sessionService) {
+  public MessageService(
+      MessageRepository repo,
+      SessionService sessionService,
+      SessionRepository sessionRepo) {
     this.repo = repo;
     this.sessionService = sessionService;
+    this.sessionRepo = sessionRepo;
   }
 
   /**
@@ -41,8 +46,8 @@ public class MessageService {
       String type,
       Map<String, Object> content,
       Map<String, Object> aiMeta) {
-    Session session = sessionService.getById(sessionId);
-    long seq = session.nextSeq();
+    sessionService.getById(sessionId); // 校验存在
+    long seq = sessionRepo.nextSeq(sessionId);
     Message m =
         Message.builder()
             .id("msg_" + UUID.randomUUID().toString().replace("-", ""))

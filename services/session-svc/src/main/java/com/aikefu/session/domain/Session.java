@@ -2,7 +2,6 @@ package com.aikefu.session.domain;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -12,9 +11,20 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
 /**
- * 会话聚合根。M1 内存表示,M2 起以 MongoDB 文档持久化。
+ * 会话聚合根。
+ *
+ * <p>M1 内存仓储 + M2.5 起可切换到 MongoDB 文档(集合名 {@code sessions}),
+ * 由 {@code aikefu.session.store} 决定使用哪种实现。
+ *
+ * <p>Mongo 注解仅在 store=mongo 时生效;InMemory 模式忽略它们。seq 自增源由
+ * {@code SessionRepository.nextSeq} 接管(InMemory 用 AtomicLong map,Mongo 用
+ * findAndModify);本类不再持有 seq 计数。
  */
+@Document(collection = "sessions")
 @Getter
 @Setter
 @Builder
@@ -22,7 +32,7 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Session {
-  String id;
+  @Id String id;
   long tenantId;
   long userId;
   /** 接入渠道:web_h5 / app_webview / pc … */
@@ -37,12 +47,4 @@ public class Session {
   Map<String, Object> liveContext;
   Instant startedAt;
   Instant endedAt;
-
-  /** 会话内消息 seq 自增源(M1 内存,M2 由 MongoDB findAndModify 替代)。 */
-  @Builder.Default AtomicLong seqCounter = new AtomicLong(0);
-
-  /** 取下一个 seq。 */
-  public long nextSeq() {
-    return seqCounter.incrementAndGet();
-  }
 }

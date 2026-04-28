@@ -3,18 +3,27 @@ package com.aikefu.session.persistence;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
 import com.aikefu.session.domain.Session;
 import com.aikefu.session.domain.SessionStatus;
 
-/** M1 内存实现 — 仅本节点可见。 */
+/**
+ * 内存实现 — 仅本节点可见,适合开发与单测。
+ *
+ * <p>通过 {@code aikefu.session.store=memory}(默认)启用;切换为 {@code mongo} 时
+ * 由 {@code MongoSessionRepository} 接管。
+ */
 @Repository
+@ConditionalOnProperty(name = "aikefu.session.store", havingValue = "memory", matchIfMissing = true)
 public class InMemorySessionRepository implements SessionRepository {
 
   private final ConcurrentMap<String, Session> byId = new ConcurrentHashMap<>();
   private final ConcurrentMap<String, String> currentByUser = new ConcurrentHashMap<>();
+  private final ConcurrentMap<String, AtomicLong> seqs = new ConcurrentHashMap<>();
 
   @Override
   public Session save(Session session) {
@@ -42,6 +51,11 @@ public class InMemorySessionRepository implements SessionRepository {
     Session s = byId.get(id);
     if (s == null || s.getStatus() == SessionStatus.CLOSED) return Optional.empty();
     return Optional.of(s);
+  }
+
+  @Override
+  public long nextSeq(String sessionId) {
+    return seqs.computeIfAbsent(sessionId, k -> new AtomicLong()).incrementAndGet();
   }
 
   private static String userKey(long tenantId, long userId) {
