@@ -72,21 +72,24 @@ func main() {
 func buildRouter(cfg config.Config, logger *slog.Logger) wsconn.Router {
 	chain := []wsconn.Router{}
 
+	// 共享给 SessionRouter 与 AIRouter 的 session-svc / agent-bff 客户端
+	var sess *sessionclient.Client
+	var bff *agentbff.Client
 	if cfg.SessionSvcURL != "" {
+		sess = sessionclient.New(cfg.SessionSvcURL)
+	}
+	if cfg.AgentBffURL != "" {
+		logger.Info("router: +agent-bff reverse-notify", "agent_bff", cfg.AgentBffURL)
+		bff = agentbff.New(cfg.AgentBffURL, cfg.AgentBffToken)
+	}
+
+	if sess != nil {
 		logger.Info("router: +session", "session_svc", cfg.SessionSvcURL)
-		var bff *agentbff.Client
-		if cfg.AgentBffURL != "" {
-			logger.Info("router: +agent-bff reverse-notify", "agent_bff", cfg.AgentBffURL)
-			bff = agentbff.New(cfg.AgentBffURL, cfg.AgentBffToken)
-		}
-		chain = append(
-			chain,
-			router.NewSession(sessionclient.New(cfg.SessionSvcURL), bff, logger),
-		)
+		chain = append(chain, router.NewSession(sess, bff, logger))
 	}
 	if cfg.AIHubURL != "" {
-		logger.Info("router: +ai", "ai_hub", cfg.AIHubURL)
-		chain = append(chain, router.NewAI(aihub.New(cfg.AIHubURL), logger))
+		logger.Info("router: +ai", "ai_hub", cfg.AIHubURL, "persist_ai", sess != nil)
+		chain = append(chain, router.NewAI(aihub.New(cfg.AIHubURL), sess, bff, logger))
 	} else {
 		logger.Info("router: +echo (no AI_HUB_URL)")
 		chain = append(chain, router.NewEcho())
