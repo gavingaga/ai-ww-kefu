@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/ai-kefu/gateway-ws/internal/agentbff"
 	"github.com/ai-kefu/gateway-ws/internal/frame"
 	"github.com/ai-kefu/gateway-ws/internal/sessionclient"
 	"github.com/ai-kefu/gateway-ws/internal/wsconn"
@@ -14,19 +15,24 @@ import (
 // Session 把客户端业务消息(msg.text/image/file)写入 session-svc,并把入库后的消息
 // 以服务端帧形式回送给客户端 — 客户端用 client_msg_id 销账 pending。
 //
-// M1:仅做"入库 + 回执"的最小动作;M2 起 SessionRouter 之后会有 AIRoute 把 user 消息
-// 转给 ai-hub 拿流式回复。
+// 在 append 成功后,fire-and-forget 调 agent-bff /v1/agent/_internal/session-message,
+// 让坐席侧 SSE 实时收到 C 端消息(M3 起步消除当前会话 4s 轮询)。
 type Session struct {
-	Client *sessionclient.Client
-	Logger *slog.Logger
+	Client   *sessionclient.Client
+	BffPush  *agentbff.Client
+	Logger   *slog.Logger
 }
 
-// NewSession 构造。
-func NewSession(c *sessionclient.Client, logger *slog.Logger) *Session {
+// NewSession 构造;bff 可空(关闭反向通知)。
+func NewSession(
+	c *sessionclient.Client,
+	bff *agentbff.Client,
+	logger *slog.Logger,
+) *Session {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Session{Client: c, Logger: logger}
+	return &Session{Client: c, BffPush: bff, Logger: logger}
 }
 
 // Handle 实现 wsconn.Router。
@@ -54,6 +60,17 @@ func (s *Session) Handle(ctx context.Context, _ *wsconn.Conn, in frame.Frame) ([
 			{Type: frame.TypeError, SessionID: in.SessionID, Payload: body},
 		}, nil
 	}
+	// 反向通知 agent-bff:让坐席侧 SSE 实时收到 C 端消息。
+	// 用独立 ctx + goroutine,既不阻塞回执也不被 reqCtx 提前取消。
+	if s.BffPush != nil && s.BffPush.Enabled() {
+		mCopy := m
+		go func() {
+			notifyCtx, notifyCancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+			defer notifyCancel()
+			s.BffPush.NotifySessionMessage(notifyCtx, in.SessionID, mCopy)
+		}()
+	}
+
 	// 入库回执:服务端推一帧 msg.<type>,带 client_msg_id,客户端清 pending
 	payload, _ := json.Marshal(map[string]interface{}{
 		"text":          extractText(in.Payload),

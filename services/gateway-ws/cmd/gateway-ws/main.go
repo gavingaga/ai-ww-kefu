@@ -20,6 +20,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ai-kefu/gateway-ws/internal/agentbff"
 	"github.com/ai-kefu/gateway-ws/internal/aihub"
 	"github.com/ai-kefu/gateway-ws/internal/config"
 	"github.com/ai-kefu/gateway-ws/internal/dispatch"
@@ -73,7 +74,15 @@ func buildRouter(cfg config.Config, logger *slog.Logger) wsconn.Router {
 
 	if cfg.SessionSvcURL != "" {
 		logger.Info("router: +session", "session_svc", cfg.SessionSvcURL)
-		chain = append(chain, router.NewSession(sessionclient.New(cfg.SessionSvcURL), logger))
+		var bff *agentbff.Client
+		if cfg.AgentBffURL != "" {
+			logger.Info("router: +agent-bff reverse-notify", "agent_bff", cfg.AgentBffURL)
+			bff = agentbff.New(cfg.AgentBffURL, cfg.AgentBffToken)
+		}
+		chain = append(
+			chain,
+			router.NewSession(sessionclient.New(cfg.SessionSvcURL), bff, logger),
+		)
 	}
 	if cfg.AIHubURL != "" {
 		logger.Info("router: +ai", "ai_hub", cfg.AIHubURL)

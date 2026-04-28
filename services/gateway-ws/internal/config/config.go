@@ -33,6 +33,11 @@ type Config struct {
 
 	/** /internal/push 共享 token(空则放开;生产应配 + 走内部网络) */
 	InternalPushToken string
+
+	// agent-bff 反向通知 — C 端消息入库后 fire-and-forget 调
+	// /v1/agent/_internal/session-message;空则关闭
+	AgentBffURL   string
+	AgentBffToken string
 }
 
 // Load 从环境变量读取配置。
@@ -58,6 +63,8 @@ func Load() Config {
 		RegistryType:         envStr("GATEWAY_REGISTRY", "noop"),
 		RedisAddr:            envStr("REDIS_ADDR", ""),
 		InternalPushToken:    envStr("GATEWAY_INTERNAL_PUSH_TOKEN", ""),
+		AgentBffURL:          envStr("AGENT_BFF_URL", ""),
+		AgentBffToken:        envStr("AGENT_BFF_INTERNAL_TOKEN", ""),
 	}
 }
 

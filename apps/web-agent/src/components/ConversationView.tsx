@@ -81,8 +81,9 @@ export function ConversationView({
     } catch {
       // 不支持 EventSource 时回退轮询
     }
-    // 30s 兜底轮询(用来兜 C 端发来的、未走 agent-bff 的消息;后续 ticket 接 gateway-ws → bff 反向通知后可去掉)
-    const fallback = setInterval(load, 30_000);
+    // C 端消息已由 gateway-ws → agent-bff 反向通知 → SSE 推送;
+    // 这里只保留 60s 极低频兜底,防 SSE 短暂断开期间漏消息(EventSource 自动重连)。
+    const fallback = setInterval(load, 60_000);
 
     return () => {
       cancelled = true;

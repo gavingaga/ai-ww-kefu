@@ -34,6 +34,9 @@ make run             # 默认 :8080,/v1/ws
 | `GATEWAY_ALLOWED_ORIGINS` | (空,放开) | 逗号分隔 Origin 白名单 |
 | `SESSION_SVC_URL` | (空) | 接入 session-svc 写入消息 |
 | `AI_HUB_URL` | (空) | 接入 ai-hub /v1/ai/infer,启用流式 AI 回复 |
+| `AGENT_BFF_URL` | (空) | 入库 C 端消息后反向通知 agent-bff,坐席侧 SSE 实时收到 |
+| `AGENT_BFF_INTERNAL_TOKEN` | (空) | 与 agent-bff `aikefu.internal-token` 一致时启用鉴权 |
+| `GATEWAY_INTERNAL_PUSH_TOKEN` | (空) | 自身 `/internal/push` 鉴权 token |
 | `GATEWAY_REGISTRY` | `noop` | `noop` / `mem` / `redis` |
 | `GATEWAY_NODE_ID` | `hostname` | 跨节点 Registry 中本节点的 ID |
 | `REDIS_ADDR` | (空) | `redis:6379`,需 `-tags redis` 编译 |
