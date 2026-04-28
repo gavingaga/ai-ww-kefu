@@ -3,9 +3,13 @@
 事件协议(消费方按 ``event`` 字段分发):
     {"event": "decision", "action": "...", "reason": "...", "hits": [...]}
     {"event": "token", "text": "增量"}
-    {"event": "handoff", "reason": "...", "hits": [...]}     # action=handoff 时
+    {"event": "faq", "node_id": "...", "title": "...", "answer": {...}, "score": 0.93, "how": "exact|similar"}
+    {"event": "handoff", "reason": "...", "hits": [...]}
     {"event": "done", "tokens_in": 0, "tokens_out": 0, "model": "..."}
     {"event": "error", "message": "..."}
+
+决策路径(详见 PRD 03 §2.2):
+    HANDOFF(关键词)→ FAQ(精确 / 相似)→ LLM_GENERAL → 兜底(error)
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .decision import decide
+from .faq_client import FaqClient
 from .llm_client import chat_stream
 from .prompt import build_messages, render_system
 
@@ -41,10 +46,12 @@ class InferRequest(BaseModel):
     stream: bool = True
 
 
-def create_app() -> FastAPI:
-    app = FastAPI(title="ai-kefu ai-hub", version="0.1.0")
+def create_app(*, faq_client: FaqClient | None = None) -> FastAPI:
+    app = FastAPI(title="ai-kefu ai-hub", version="0.2.0")
 
     llm_router_base = os.getenv("LLM_ROUTER_URL", "http://localhost:8090")
+    notify_base = os.getenv("NOTIFY_SVC_URL", "http://localhost:8082")
+    fc = faq_client if faq_client is not None else FaqClient(notify_base)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -55,17 +62,9 @@ def create_app() -> FastAPI:
         decision = decide(req.user_text)
 
         async def gen() -> AsyncIterator[bytes]:
-            yield _sse(
-                {
-                    "event": "decision",
-                    "action": decision.action,
-                    "reason": decision.reason,
-                    "confidence": decision.confidence,
-                    "hits": decision.hits,
-                }
-            )
-
+            # ① 强制规则 → handoff(优先级最高,绕过 FAQ / LLM)
             if decision.action == "handoff":
+                yield _sse(_decision_event(decision))
                 yield _sse(
                     {
                         "event": "handoff",
@@ -77,7 +76,45 @@ def create_app() -> FastAPI:
                 yield _sse({"event": "done"})
                 return
 
-            # LLM_GENERAL — 拼 prompt → llm-router 流式
+            # ② FAQ 精确 / 相似匹配(零 token)
+            try:
+                hit = await fc.match(req.user_text)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("ai-hub: faq match failed, fallback to LLM: %s", e)
+                hit = None
+
+            if hit:
+                node_id = hit.get("node_id", "")
+                yield _sse(
+                    {
+                        "event": "decision",
+                        "action": "faq",
+                        "reason": "faq_" + str(hit.get("how") or "exact"),
+                        "confidence": float(hit.get("score") or 1.0),
+                        "hits": [node_id] if node_id else [],
+                    }
+                )
+                yield _sse(
+                    {
+                        "event": "faq",
+                        "node_id": node_id,
+                        "title": hit.get("title"),
+                        "answer": hit.get("answer"),
+                        "score": float(hit.get("score") or 1.0),
+                        "how": hit.get("how") or "exact",
+                    }
+                )
+                # 命中埋点(忽略失败)
+                if node_id:
+                    try:
+                        await fc.hit(node_id)
+                    except Exception:  # noqa: BLE001
+                        logger.debug("faq hit log failed", exc_info=True)
+                yield _sse({"event": "done", "tokens_out": 0})
+                return
+
+            # ③ LLM_GENERAL
+            yield _sse(_decision_event(decision))
             sys_text = render_system(
                 profile=req.profile,
                 live_context=req.live_context,
@@ -116,6 +153,16 @@ def create_app() -> FastAPI:
         return StreamingResponse(gen(), media_type="text/event-stream")
 
     return app
+
+
+def _decision_event(decision) -> dict[str, Any]:  # type: ignore[no-untyped-def]
+    return {
+        "event": "decision",
+        "action": decision.action,
+        "reason": decision.reason,
+        "confidence": decision.confidence,
+        "hits": decision.hits,
+    }
 
 
 def _sse(obj: dict[str, Any]) -> bytes:
