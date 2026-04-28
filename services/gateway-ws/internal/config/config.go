@@ -30,6 +30,9 @@ type Config struct {
 	NodeID        string // 当前节点 ID(用于 Registry 跨节点路由),空则按 hostname 生成
 	RegistryType  string // noop / mem / redis,默认 noop(单进程)
 	RedisAddr     string // Registry=redis 时使用
+
+	/** /internal/push 共享 token(空则放开;生产应配 + 走内部网络) */
+	InternalPushToken string
 }
 
 // Load 从环境变量读取配置。
@@ -54,6 +57,7 @@ func Load() Config {
 		NodeID:               envStr("GATEWAY_NODE_ID", ""),
 		RegistryType:         envStr("GATEWAY_REGISTRY", "noop"),
 		RedisAddr:            envStr("REDIS_ADDR", ""),
+		InternalPushToken:    envStr("GATEWAY_INTERNAL_PUSH_TOKEN", ""),
 	}
 }
 

@@ -55,8 +55,69 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc(s.cfg.HealthPath, s.handleHealth)
 	mux.HandleFunc(s.cfg.ReadyPath, s.handleReady)
 	mux.HandleFunc("/metrics-lite", s.handleStats)
+	mux.HandleFunc("/internal/push", s.handleInternalPush)
 	mux.HandleFunc(s.cfg.WSPath, s.handleWS)
 	return mux
+}
+
+// handleInternalPush 服务端→服务端 推送。
+//
+// 期望 body:{"session_id": "...", "frame": { ...任意服务端帧... }}
+// 优先经 dispatcher 路由(本地命中即推 / 0 命中跨节点);无 dispatcher 时回落 hub 直推。
+//
+// 受 INTERNAL_PUSH_TOKEN 保护:配置后请求需带 ``X-Internal-Token`` 头,匹配才允许。
+func (s *Server) handleInternalPush(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if s.cfg.InternalPushToken != "" {
+		if r.Header.Get("X-Internal-Token") != s.cfg.InternalPushToken {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+	}
+	var body struct {
+		SessionID string                 `json:"session_id"`
+		Frame     map[string]interface{} `json:"frame"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad json"})
+		return
+	}
+	if body.SessionID == "" || body.Frame == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "session_id + frame required"})
+		return
+	}
+	// 自动补 session_id / ts / type 默认值
+	body.Frame["session_id"] = body.SessionID
+	if _, ok := body.Frame["ts"]; !ok {
+		body.Frame["ts"] = time.Now().UnixMilli()
+	}
+	if _, ok := body.Frame["type"]; !ok {
+		body.Frame["type"] = frame.TypeMsgText
+	}
+	payload, err := json.Marshal(body.Frame)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	var local int
+	if s.dispatcher != nil {
+		n, err := s.dispatcher.PushSession(r.Context(), body.SessionID, payload)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		local = n
+	} else {
+		local = s.hub.PushSession(body.SessionID, payload)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":         true,
+		"session_id": body.SessionID,
+		"local":      local,
+	})
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
