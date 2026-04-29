@@ -50,9 +50,9 @@
 - [x] **T-403** 快捷按钮点击数据回流(notify-svc POST /v1/quick-replies/{id}/click + GET /clicks 内存计数;web-c QuickReplies 行内 fire-and-forget)
 - [x] **T-404** web-c 形态适配(?form=bubble|drawer|fullscreen 在 <html> 设 data-form;CSS 切换宽高;横屏 ≤500px 公告紧凑)
 - [x] **T-406** 暗色(?theme=dark|light|auto + 监听系统切换)+ i18n(zh/en 字典 + ?lang= URL + localStorage)
-- [ ] **T-503** 质检模块
-- [ ] **T-505** 回归测试集 + 上线门禁
-- [ ] **T-506** A/B 实验框架
+- [x] **T-503** 质检模块(audit-svc QualityController:GET /v1/audit/quality/sample 抽样 + POST /score 录入,quality.review 写主审计流)
+- [x] **T-505** 回归测试集(ai-hub tests/test_regression.py:5 路径金标 handoff×3 / llm×3 / faq / rag,CI 阻塞)
+- [x] **T-506** A/B 框架(InferRequest.prompt_version 灰度 + 管理后台 Prompt A/B + 决策预览;README 落地说明)
 
 ## 已完成(本轮新增,非历史里程碑)
 

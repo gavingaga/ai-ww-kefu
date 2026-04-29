@@ -93,3 +93,11 @@ uv run --package ai-hub pytest services/ai-hub
 LLM_ROUTER_URL=http://localhost:8090 uv run --package ai-hub python -m ai_hub.main
 # /docs:http://localhost:8091/docs
 ```
+
+## A/B 实验(T-506)
+
+- `InferRequest.prompt_version` 入参显式指定 prompt 版本(同 scene 下,不传取最大);
+  上层 BFF / 网关按 user_id hash 把 50% 流量传 v2 即可灰度
+- 管理后台「Prompt A/B」并排预览两个版本(`/v1/admin/prompts/preview`)
+- 「决策预览」`/v1/admin/ai/decide` 不调 LLM,只跑决策器 + FAQ + KB,看路径是否变化
+- 回归集 `tests/test_regression.py` 5 路径金标,CI 阻塞失败发布
