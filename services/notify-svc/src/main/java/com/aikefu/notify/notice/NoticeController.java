@@ -119,6 +119,29 @@ public class NoticeController {
         : ResponseEntity.noContent().build();
   }
 
+  // ───── 点击数据回流 ─────
+
+  private final java.util.concurrent.ConcurrentMap<String, java.util.concurrent.atomic.AtomicLong> clickCounts =
+      new java.util.concurrent.ConcurrentHashMap<>();
+
+  /** 点击计数 — 后续接 report-svc 入湖,这里先内存累计。 */
+  @org.springframework.web.bind.annotation.PostMapping("/quick-replies/{id}/click")
+  public Map<String, Object> clickQuickReply(
+      @PathVariable("id") String id, @RequestBody(required = false) Map<String, Object> body) {
+    long n =
+        clickCounts
+            .computeIfAbsent(id, k -> new java.util.concurrent.atomic.AtomicLong())
+            .incrementAndGet();
+    return Map.of("ok", true, "id", id, "count", n, "scene", body == null ? "" : body.getOrDefault("scene", ""));
+  }
+
+  @org.springframework.web.bind.annotation.GetMapping("/quick-replies/clicks")
+  public Map<String, Long> clickStats() {
+    Map<String, Long> out = new java.util.LinkedHashMap<>();
+    clickCounts.forEach((k, v) -> out.put(k, v.get()));
+    return out;
+  }
+
   // ───── helpers ─────
 
   private static Map<String, Object> save(

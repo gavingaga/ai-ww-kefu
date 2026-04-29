@@ -126,7 +126,7 @@ export function MarqueeBar({
           </span>
         ))}
       </div>
-      {onClose && (
+      {onClose && ordered[0]?.level !== "critical" && (
         <button
           aria-label="关闭公告"
           onClick={() => onClose(ordered[0]!)}
