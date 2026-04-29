@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from .health import HealthTracker
 from .openai_adapter import LLMError
 from .profiles import ProfileRegistry
+from .quota import QuotaManager
 from .router import Router
 
 logger = logging.getLogger(__name__)
@@ -33,10 +34,18 @@ def create_app(registry: ProfileRegistry | None = None) -> FastAPI:
     reg = registry or ProfileRegistry.from_env()
     health = HealthTracker()
     router = Router(reg, health)
+    quota = QuotaManager(reg)
 
     app.state.registry = reg
     app.state.router = router
     app.state.health = health
+    app.state.quota = quota
+
+    @app.get("/v1/profiles/{pid}/quota")
+    async def profile_quota(pid: str) -> dict[str, Any]:
+        if not reg.get(pid):
+            raise HTTPException(404, "profile not found")
+        return quota.snapshot(pid)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -78,12 +87,25 @@ def create_app(registry: ProfileRegistry | None = None) -> FastAPI:
         messages = body.get("messages", [])
         tools = body.get("tools")
         stream = bool(body.get("stream"))
-        # 取出未必所有 key 都属 OpenAI 透传(model 可能被档位覆盖,这里允许显式覆盖)
         extra: dict[str, Any] = {k: v for k, v in body.items() if k not in {"messages", "tools", "stream"}}
+        # 限速 / 预算 — 用消息长度估算入参 token(粗略 4 字符/ token)
+        est_in = sum(len(str(m.get("content") or "")) for m in messages) // 4 + 1
+        ok, reason, used_pct = await quota.check_and_reserve(profile_id, est_in)
+        if not ok:
+            status_code = 503 if "budget" in reason else 429
+            return JSONResponse(
+                {"error": {"code": "rate_limited", "message": reason}},
+                status_code=status_code,
+                headers={"X-Budget-Used-Pct": f"{used_pct:.4f}"},
+            )
 
         if not stream:
             data = await router.once_full(profile_id, messages, tools=tools, extra_params=extra)
-            return JSONResponse(data)
+            usage = data.get("usage") or {}
+            in_t = int(usage.get("prompt_tokens") or est_in)
+            out_t = int(usage.get("completion_tokens") or 0)
+            new_pct = await quota.record(profile_id, in_t, out_t, est_in_tokens_already_reserved=est_in)
+            return JSONResponse(data, headers={"X-Budget-Used-Pct": f"{new_pct:.4f}"})
 
         async def gen() -> AsyncIterator[bytes]:
             try:

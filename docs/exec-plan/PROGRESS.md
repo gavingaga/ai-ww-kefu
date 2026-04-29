@@ -38,7 +38,7 @@
 - [ ] **T-229** web-admin 工具调试器
 - [ ] **T-227** sdk-jsbridge:setLiveContext / requestPlayDiagnostics 等
 - [ ] **T-220+** livectx-svc 字段强校验(JSON Schema 拒绝伪造)
-- [ ] **T-203** llm-router 限速 RPM/TPM + 预算告警
+- [x] **T-203** llm-router 限速 RPM/TPM + 日预算(QuotaManager 滑窗 + ModelProfile 加 budget_usd_daily/rate_in_per_1k/rate_out_per_1k;429 / 503 + X-Budget-Used-Pct 头;GET /v1/profiles/{id}/quota 快照)
 - [ ] **T-204** KMS 注入 Key + 测试连接
 
 ## 优先级 P3(平台化 / 长尾)

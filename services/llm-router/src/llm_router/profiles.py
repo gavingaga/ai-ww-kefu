@@ -34,6 +34,11 @@ class ModelProfile(BaseModel):
     timeout_ms: int = 15_000
     rpm: int = 600
     tpm: int = 200_000
+    # 日预算(USD);0 = 不限。超阈值 80% 在响应头 X-Budget-Used-Pct 提示,>= 100% 拒绝
+    budget_usd_daily: float = 0.0
+    # USD per 1K tokens(估算用,生产以厂商账单为准)
+    rate_in_per_1k: float = 0.0
+    rate_out_per_1k: float = 0.0
     fallback_id: str | None = None
     tags: list[str] = Field(default_factory=lambda: ["default"])
 
