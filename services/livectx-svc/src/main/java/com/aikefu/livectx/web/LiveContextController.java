@@ -59,8 +59,9 @@ public class LiveContextController {
    */
   @PostMapping("/context")
   public ResponseEntity<Map<String, Object>> report(@RequestBody Map<String, Object> body) {
-    if (body == null || body.isEmpty()) {
-      return ResponseEntity.badRequest().body(Map.of("error", "body required"));
+    java.util.List<String> errors = LiveContextValidator.validate(body);
+    if (!errors.isEmpty()) {
+      return ResponseEntity.badRequest().body(Map.of("ok", false, "errors", errors));
     }
     String scene = String.valueOf(body.getOrDefault("scene", ""));
     Long roomId = asLong(body.get("room_id"));
