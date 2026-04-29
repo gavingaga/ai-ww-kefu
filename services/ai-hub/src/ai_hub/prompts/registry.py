@@ -74,8 +74,10 @@ class PromptRegistry:
 
     def _load_builtin(self) -> None:
         try:
-            pkg = resources.files(__name__).joinpath("templates")
-        except (ModuleNotFoundError, FileNotFoundError):
+            # __name__ 是 module(ai_hub.prompts.registry),resources.files 需要 package。
+            # __package__ 在 module 里就是它的 package(ai_hub.prompts),正好。
+            pkg = resources.files(__package__).joinpath("templates")
+        except (ModuleNotFoundError, FileNotFoundError, TypeError):
             return
         if not pkg.is_dir():
             return
