@@ -5,6 +5,7 @@ import { GlassCard, MarqueeBar } from "@ai-kefu/ui-glass";
 
 import { Composer } from "./components/Composer.js";
 import { ConnectionBar } from "./components/ConnectionBar.js";
+import { RoomSnapshotCard } from "./components/RoomSnapshotCard.js";
 import { MessageList } from "./components/MessageList.js";
 import { QuickReplies } from "./components/QuickReplies.js";
 import {
@@ -518,6 +519,8 @@ export function App() {
         }}
       >
         <ConnectionBar status={status} />
+
+        <RoomSnapshotCard />
 
         <MarqueeBar
           items={announcements}

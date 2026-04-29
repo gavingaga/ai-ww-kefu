@@ -22,6 +22,10 @@ export default defineConfig({
         target: process.env.VITE_NOTIFY_URL ?? "http://localhost:8082",
         changeOrigin: true,
       },
+      "/v1/live": {
+        target: process.env.VITE_LIVECTX_URL ?? "http://localhost:8086",
+        changeOrigin: true,
+      },
     },
   },
   build: {

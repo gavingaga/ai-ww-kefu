@@ -34,7 +34,7 @@
 - [ ] **T-216** Prompt 模板 A/B 切流
 - [ ] **T-219** web-admin 转人工策略可视化 + 决策预览
 - [x] **T-217** web-admin 知识库管理(kb-svc GET /v1/kb/docs + DELETE/{id} + POST/{id}/reindex;agent-bff 透传;KbIngestPanel 顶部加文档列表 + 重嵌入 / 删除按钮)
-- [ ] **T-228** web-c 直播间快照卡 + 播放诊断卡
+- [x] **T-228** web-c RoomSnapshotCard(房间/节目/清晰度/卡顿/网络 Tag + 播放诊断按钮 → verdict 高亮 + 切清晰度 / 重进直播间)
 - [ ] **T-229** web-admin 工具调试器
 - [x] **T-227** sdk-jsbridge:JsBridge 类 + getKefuBridge 单例;原生 → web 两级路由;接口齐:setLiveContext / requestPlayDiagnostics / switchQuality / reenterRoom / minimize / openLink / onOrientation / onPipChange
 - [x] **T-220+** livectx-svc 字段强校验(LiveContextValidator:scene/quality/state/report.type/network.type 枚举 + id 非负 + uid 正 + boolean 类型 + stream_url_hash 防明文 URL + fps∈[0,240];错误数组 400)
