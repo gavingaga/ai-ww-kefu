@@ -47,4 +47,24 @@ public class KbClient {
         .retrieve()
         .body(new ParameterizedTypeReference<>() {});
   }
+
+  public Map<String, Object> listDocs() {
+    return client.get().uri("/v1/kb/docs").retrieve().body(new ParameterizedTypeReference<>() {});
+  }
+
+  public Map<String, Object> deleteDoc(String docId) {
+    return client
+        .delete()
+        .uri("/v1/kb/docs/{id}", docId)
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
+  public Map<String, Object> reindexDoc(String docId) {
+    return client
+        .post()
+        .uri("/v1/kb/docs/{id}/reindex", docId)
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
 }

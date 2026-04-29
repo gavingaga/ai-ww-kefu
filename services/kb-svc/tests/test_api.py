@@ -71,6 +71,48 @@ def test_debug_search_empty_query_400():
     assert r.status_code == 400
 
 
+def test_list_docs_returns_aggregated_rows():
+    c = make_client()
+    body = c.get("/v1/kb/docs").json()
+    assert body["total"] >= 1
+    assert any("doc_id" in r and "chunks" in r and r["chunks"] >= 1 for r in body["items"])
+
+
+def test_delete_doc_removes_all_chunks_and_404_on_repeat():
+    c = make_client()
+    # 先 ingest 一个一次性文档
+    c.post(
+        "/v1/kb/ingest",
+        json={
+            "id": "doc_to_delete",
+            "kb_id": "default",
+            "title": "临时",
+            "body": "这是一段会被删除的内容。" * 5,
+        },
+    )
+    r = c.delete("/v1/kb/docs/doc_to_delete")
+    assert r.status_code == 200
+    assert r.json()["deleted_chunks"] >= 1
+    # 二次删除 → 404
+    assert c.delete("/v1/kb/docs/doc_to_delete").status_code == 404
+
+
+def test_reindex_doc_updates_embeddings():
+    c = make_client()
+    c.post(
+        "/v1/kb/ingest",
+        json={
+            "id": "doc_reindex",
+            "kb_id": "default",
+            "title": "重嵌入用",
+            "body": "测试重嵌入流程的占位文本。",
+        },
+    )
+    r = c.post("/v1/kb/docs/doc_reindex/reindex")
+    assert r.status_code == 200
+    assert r.json()["reindexed"] >= 1
+
+
 def test_ingest_then_search():
     c = make_client()
     c.post(

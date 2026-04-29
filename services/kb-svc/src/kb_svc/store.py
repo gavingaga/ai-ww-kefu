@@ -32,6 +32,42 @@ class ChunkStore:
             return list(range(len(self.chunks)))
         return [i for i, c in enumerate(self.chunks) if c.kb_id == kb_id]
 
+    def list_docs(self) -> list[dict]:
+        """按 doc_id 聚合 — 返回 [{doc_id, kb_id, title, chunks}, ...]。"""
+        agg: dict[str, dict] = {}
+        for c in self.chunks:
+            row = agg.setdefault(
+                c.doc_id,
+                {"doc_id": c.doc_id, "kb_id": c.kb_id, "title": c.title, "chunks": 0},
+            )
+            row["chunks"] += 1
+        return sorted(agg.values(), key=lambda r: (r["kb_id"], r["doc_id"]))
+
+    def by_doc(self, doc_id: str) -> list[int]:
+        return [i for i, c in enumerate(self.chunks) if c.doc_id == doc_id]
+
+    def delete_by_doc(self, doc_id: str) -> int:
+        """删除某文档的所有 chunks,返回删除数。BM25 索引重建。"""
+        removed = 0
+        kept: list[Chunk] = []
+        for c in self.chunks:
+            if c.doc_id == doc_id:
+                removed += 1
+            else:
+                kept.append(c)
+        if removed == 0:
+            return 0
+        self.chunks = kept
+        # 重建 BM25(chunk 顺序变了,索引必须重置)
+        self.bm25 = BM25Index()
+        for c in self.chunks:
+            self.bm25.add((c.title or "") + "\n" + c.content)
+        return removed
+
+    def replace_chunk_embedding(self, idx: int, embedding: list[float]) -> None:
+        if 0 <= idx < len(self.chunks):
+            self.chunks[idx].embedding = embedding
+
     def vector_search(
         self,
         query_vec: list[float],

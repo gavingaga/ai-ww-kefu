@@ -5,6 +5,7 @@ import type {
   FaqPreviewResult,
   FaqTree,
   KbDebugResponse,
+  KbDocsResponse,
   KbIngestResponse,
   KbStats,
   LoginResponse,
@@ -73,6 +74,22 @@ export interface IngestInput {
 
 export function kbIngest(input: IngestInput): Promise<KbIngestResponse> {
   return postJSON<KbIngestResponse>("/v1/admin/kb/ingest", input);
+}
+
+export function kbListDocs(): Promise<KbDocsResponse> {
+  return getJSON<KbDocsResponse>("/v1/admin/kb/docs");
+}
+
+export async function kbDeleteDoc(docId: string): Promise<void> {
+  const r = await fetch("/v1/admin/kb/docs/" + encodeURIComponent(docId), { method: "DELETE" });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+}
+
+export function kbReindexDoc(docId: string): Promise<{ ok: boolean; reindexed: number }> {
+  return postJSON<{ ok: boolean; reindexed: number }>(
+    `/v1/admin/kb/docs/${encodeURIComponent(docId)}/reindex`,
+    {},
+  );
 }
 
 // ───── FAQ ─────

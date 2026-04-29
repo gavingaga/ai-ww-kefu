@@ -33,7 +33,7 @@
 - [ ] **T-215** web-admin 模型档位 CRUD + 测试连接 + 试聊
 - [ ] **T-216** Prompt 模板 A/B 切流
 - [ ] **T-219** web-admin 转人工策略可视化 + 决策预览
-- [ ] **T-217** web-admin 知识库管理(列表 / 删除 / 重嵌入,目前只有入库)
+- [x] **T-217** web-admin 知识库管理(kb-svc GET /v1/kb/docs + DELETE/{id} + POST/{id}/reindex;agent-bff 透传;KbIngestPanel 顶部加文档列表 + 重嵌入 / 删除按钮)
 - [ ] **T-228** web-c 直播间快照卡 + 播放诊断卡
 - [ ] **T-229** web-admin 工具调试器
 - [ ] **T-227** sdk-jsbridge:setLiveContext / requestPlayDiagnostics 等

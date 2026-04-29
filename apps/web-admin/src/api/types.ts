@@ -65,6 +65,18 @@ export interface KbIngestResponse {
   doc_id: string;
 }
 
+export interface KbDocRow {
+  doc_id: string;
+  kb_id: string;
+  title: string;
+  chunks: number;
+}
+
+export interface KbDocsResponse {
+  items: KbDocRow[];
+  total: number;
+}
+
 // ───── FAQ ─────
 
 export interface FaqAttachment {

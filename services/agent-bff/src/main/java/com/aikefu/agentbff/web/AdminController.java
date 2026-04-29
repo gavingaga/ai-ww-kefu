@@ -82,6 +82,21 @@ public class AdminController {
     return kb.ingest(body);
   }
 
+  @GetMapping("/kb/docs")
+  public Map<String, Object> kbListDocs() {
+    return kb.listDocs();
+  }
+
+  @DeleteMapping("/kb/docs/{id}")
+  public Map<String, Object> kbDeleteDoc(@PathVariable("id") String docId) {
+    return kb.deleteDoc(docId);
+  }
+
+  @PostMapping("/kb/docs/{id}/reindex")
+  public Map<String, Object> kbReindexDoc(@PathVariable("id") String docId) {
+    return kb.reindexDoc(docId);
+  }
+
   // ───── FAQ(管理) ─────
 
   @GetMapping("/faq/trees")

@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 
 import { Capsule, GlassCard } from "@ai-kefu/ui-glass";
 
-import { kbIngest, kbStats } from "../api/client.js";
-import type { KbIngestResponse, KbStats } from "../api/types.js";
+import { kbDeleteDoc, kbIngest, kbListDocs, kbReindexDoc, kbStats } from "../api/client.js";
+import type { KbDocRow, KbIngestResponse, KbStats } from "../api/types.js";
 
 interface IngestLog {
   ts: number;
@@ -93,6 +93,8 @@ export function KbIngestPanel() {
           </span>
         ) : null}
       </header>
+
+      <DocsList refreshKey={logs.length} />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, flex: 1, minHeight: 0 }}>
         <GlassCard strength="base" radius={12} className="admin-card" style={{ overflow: "auto" }}>
@@ -189,6 +191,117 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>{label}</span>
       {children}
     </label>
+  );
+}
+
+function DocsList({ refreshKey }: { refreshKey: number }) {
+  const [docs, setDocs] = useState<KbDocRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const refresh = async () => {
+    setLoading(true);
+    setErr(null);
+    try {
+      const r = await kbListDocs();
+      setDocs(r.items);
+    } catch (e) {
+      setErr(String((e as Error).message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+
+  const onDel = async (docId: string) => {
+    if (!confirm(`确认删除文档 ${docId}?该文档全部 chunk 都会被移除`)) return;
+    setBusyId(docId);
+    try {
+      await kbDeleteDoc(docId);
+      await refresh();
+    } catch (e) {
+      setErr(String((e as Error).message));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const onReindex = async (docId: string) => {
+    setBusyId(docId);
+    try {
+      const r = await kbReindexDoc(docId);
+      alert(`重嵌入完成,刷新了 ${r.reindexed} 个 chunk 的向量`);
+    } catch (e) {
+      setErr(String((e as Error).message));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <GlassCard strength="base" radius={12} className="admin-card" style={{ overflow: "auto", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <strong style={{ fontSize: 13 }}>文档列表({docs.length})</strong>
+        <Capsule size="sm" variant="ghost" onClick={() => void refresh()} disabled={loading}>
+          {loading ? "刷新中…" : "刷新"}
+        </Capsule>
+        {err ? <span style={{ color: "#d33", fontSize: 12 }}>{err}</span> : null}
+      </div>
+      <table className="admin-table" style={{ marginTop: 8 }}>
+        <thead>
+          <tr>
+            <th>kb_id</th>
+            <th>doc_id</th>
+            <th>title</th>
+            <th className="num">chunks</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {docs.length === 0 ? (
+            <tr>
+              <td colSpan={5} style={{ textAlign: "center", color: "var(--color-text-tertiary)", padding: 12 }}>
+                暂无文档
+              </td>
+            </tr>
+          ) : (
+            docs.map((d) => (
+              <tr key={d.doc_id}>
+                <td>{d.kb_id}</td>
+                <td style={{ color: "var(--color-text-tertiary)", fontFamily: "var(--font-mono, monospace)", fontSize: 11 }}>
+                  {d.doc_id}
+                </td>
+                <td>{d.title}</td>
+                <td className="num">{d.chunks}</td>
+                <td style={{ display: "flex", gap: 4 }}>
+                  <Capsule
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void onReindex(d.doc_id)}
+                    disabled={busyId === d.doc_id}
+                  >
+                    重嵌入
+                  </Capsule>
+                  <Capsule
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void onDel(d.doc_id)}
+                    disabled={busyId === d.doc_id}
+                  >
+                    删除
+                  </Capsule>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </GlassCard>
   );
 }
 

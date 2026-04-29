@@ -99,6 +99,30 @@ def create_app(
             "dim": getattr(e, "dim", 0),
         }
 
+    @app.get("/v1/kb/docs")
+    async def list_docs() -> dict[str, Any]:
+        return {"items": s.list_docs(), "total": len({c.doc_id for c in s.chunks})}
+
+    @app.delete("/v1/kb/docs/{doc_id}")
+    async def delete_doc(doc_id: str) -> dict[str, Any]:
+        n = s.delete_by_doc(doc_id)
+        if n == 0:
+            raise HTTPException(404, "doc not found: " + doc_id)
+        return {"ok": True, "doc_id": doc_id, "deleted_chunks": n}
+
+    @app.post("/v1/kb/docs/{doc_id}/reindex")
+    async def reindex_doc(doc_id: str) -> dict[str, Any]:
+        idxs = s.by_doc(doc_id)
+        if not idxs:
+            raise HTTPException(404, "doc not found: " + doc_id)
+        if e.dim <= 0:
+            return {"ok": True, "doc_id": doc_id, "reindexed": 0, "note": "embedder dim=0"}
+        texts = [s.chunks[i].title + "\n" + s.chunks[i].content for i in idxs]
+        vecs = await e.embed(texts)
+        for idx, v in zip(idxs, vecs, strict=False):
+            s.replace_chunk_embedding(idx, v)
+        return {"ok": True, "doc_id": doc_id, "reindexed": len(idxs)}
+
     @app.post("/v1/kb/ingest")
     async def ingest(req: IngestRequest) -> dict[str, Any]:
         doc = Document(
