@@ -45,7 +45,7 @@
 
 - [x] **T-304** 多设备互斥(agent-bff DeviceLockStore TTL 15s + heartbeat/release REST + SSE device-evicted 推老 Tab;web-agent 5s 心跳 + 被踢页面)
 - [x] **T-106** session-svc 离线消息 pull(MessageRepository.findSince + GET /v1/sessions/{id}/messages/since?seq=&limit= 升序;Mongo + Memory 双实现)
-- [ ] **T-103** gateway-ws 50k 连接压测脚本
+- [x] **T-103** gateway-ws 压测脚本(Go,gorilla/websocket;-n / -rate / -dur / -interval;每 5s 进度 + RTT p50/p90/p99 汇总)
 - [ ] **T-402** 公告 critical 常驻 + 关闭 24h + 定向
 - [ ] **T-403** 快捷按钮分组 + 数据回流
 - [ ] **T-404** web-c 形态适配(悬浮/抽屉/全屏/横屏/PIP)
