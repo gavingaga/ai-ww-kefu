@@ -15,6 +15,7 @@ import com.aikefu.agentbff.clients.KbClient;
 import com.aikefu.agentbff.clients.NotifyClient;
 import com.aikefu.agentbff.clients.ReportClient;
 import com.aikefu.agentbff.clients.RoutingClient;
+import com.aikefu.agentbff.clients.ToolClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,18 +35,34 @@ public class AdminController {
   private final RoutingClient routing;
   private final AuditClient audit;
   private final ReportClient report;
+  private final ToolClient toolClient;
 
   public AdminController(
       KbClient kb,
       NotifyClient notify,
       RoutingClient routing,
       AuditClient audit,
-      ReportClient report) {
+      ReportClient report,
+      ToolClient toolClient) {
     this.kb = kb;
     this.notify = notify;
     this.routing = routing;
     this.audit = audit;
     this.report = report;
+    this.toolClient = toolClient;
+  }
+
+  // ───── 工具调试器 ─────
+
+  @GetMapping("/tools")
+  public java.util.List<Map<String, Object>> listTools() {
+    return toolClient.list();
+  }
+
+  @PostMapping("/tools/{name}/invoke")
+  public Map<String, Object> adminInvokeTool(
+      @PathVariable("name") String name, @RequestBody Map<String, Object> body) {
+    return toolClient.invoke(name, body);
   }
 
   // ───── 运营看板 ─────

@@ -152,6 +152,22 @@ export async function deleteQuickReply(id: string): Promise<void> {
   await fetch("/v1/admin/quick-replies/" + encodeURIComponent(id), { method: "DELETE" });
 }
 
+// ───── 工具调试器 ─────
+
+export function listTools(): Promise<import("./types.js").ToolDef[]> {
+  return getJSON<import("./types.js").ToolDef[]>("/v1/admin/tools");
+}
+
+export function invokeTool(
+  name: string,
+  body: { args: Record<string, unknown>; ctx?: Record<string, unknown> },
+): Promise<import("./types.js").ToolInvokeResult> {
+  return postJSON<import("./types.js").ToolInvokeResult>(
+    `/v1/admin/tools/${encodeURIComponent(name)}/invoke`,
+    body,
+  );
+}
+
 // ───── 报表 ─────
 
 export function report(

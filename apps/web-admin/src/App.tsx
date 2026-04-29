@@ -10,8 +10,9 @@ import { KbIngestPanel } from "./components/KbIngestPanel.js";
 import { LoginGate } from "./components/LoginGate.js";
 import { NoticesPanel } from "./components/NoticesPanel.js";
 import { ReportsPanel } from "./components/ReportsPanel.js";
+import { ToolPlaygroundPanel } from "./components/ToolPlaygroundPanel.js";
 
-type Page = "dashboard" | "reports" | "audit" | "notices" | "kb-debug" | "kb-ingest" | "faq";
+type Page = "dashboard" | "reports" | "audit" | "notices" | "kb-debug" | "kb-ingest" | "faq" | "tools";
 
 interface NavItem {
   key: Page;
@@ -29,6 +30,7 @@ const NAV: NavItem[] = [
   { key: "kb-debug", label: "KB 检索调试", hint: "向量 / BM25 / RRF / Rerank 调参", minRole: "ADMIN" },
   { key: "kb-ingest", label: "KB 入库", hint: "新增文档 → 切片 + 嵌入", minRole: "ADMIN" },
   { key: "faq", label: "FAQ 节点管理", hint: "树编辑 + 命中模拟器", minRole: "ADMIN" },
+  { key: "tools", label: "工具调试器", hint: "tool-svc invoke,验参数 / dry_run", minRole: "ADMIN" },
 ];
 
 const ROLE_RANK: Record<AdminRole, number> = { ADMIN: 3, SUPERVISOR: 2, AGENT: 1 };
@@ -120,6 +122,7 @@ export function App() {
         {currentPage === "kb-debug" ? <KbDebugPanel /> : null}
         {currentPage === "kb-ingest" ? <KbIngestPanel /> : null}
         {currentPage === "faq" ? <FaqPanel /> : null}
+        {currentPage === "tools" ? <ToolPlaygroundPanel /> : null}
       </main>
     </div>
   );

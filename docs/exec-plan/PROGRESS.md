@@ -35,7 +35,7 @@
 - [ ] **T-219** web-admin 转人工策略可视化 + 决策预览
 - [x] **T-217** web-admin 知识库管理(kb-svc GET /v1/kb/docs + DELETE/{id} + POST/{id}/reindex;agent-bff 透传;KbIngestPanel 顶部加文档列表 + 重嵌入 / 删除按钮)
 - [x] **T-228** web-c RoomSnapshotCard(房间/节目/清晰度/卡顿/网络 Tag + 播放诊断按钮 → verdict 高亮 + 切清晰度 / 重进直播间)
-- [ ] **T-229** web-admin 工具调试器
+- [x] **T-229** web-admin ToolPlaygroundPanel(列出 tool-svc 工具 + 选定工具看 schema + JSON 编辑 args/ctx + invoke 后看 result/audit_id;agent-bff /v1/admin/tools 透传)
 - [x] **T-227** sdk-jsbridge:JsBridge 类 + getKefuBridge 单例;原生 → web 两级路由;接口齐:setLiveContext / requestPlayDiagnostics / switchQuality / reenterRoom / minimize / openLink / onOrientation / onPipChange
 - [x] **T-220+** livectx-svc 字段强校验(LiveContextValidator:scene/quality/state/report.type/network.type 枚举 + id 非负 + uid 正 + boolean 类型 + stream_url_hash 防明文 URL + fps∈[0,240];错误数组 400)
 - [x] **T-203** llm-router 限速 RPM/TPM + 日预算(QuotaManager 滑窗 + ModelProfile 加 budget_usd_daily/rate_in_per_1k/rate_out_per_1k;429 / 503 + X-Budget-Used-Pct 头;GET /v1/profiles/{id}/quota 快照)

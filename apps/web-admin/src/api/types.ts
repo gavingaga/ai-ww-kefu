@@ -230,6 +230,22 @@ export interface QuickReplyRow {
 
 // ───── 报表 ─────
 
+export interface ToolDef {
+  name: string;
+  description: string;
+  write: boolean;
+  timeout_ms: number;
+  parameters?: Record<string, unknown>;
+}
+
+export interface ToolInvokeResult {
+  ok: boolean;
+  result?: Record<string, unknown>;
+  error?: string;
+  duration_ms?: number;
+  audit_id?: string;
+}
+
 export interface ReportKpi {
   window_min: number;
   session_accept: number;
