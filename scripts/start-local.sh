@@ -61,6 +61,10 @@ export AI_HUB_LLM_INLINE_MOCK=1   # 不用真实 LLM
 bootstrap() {
   echo "[bootstrap] pnpm install ..."
   pnpm i || return 1
+  echo "[bootstrap] 构建 packages dist(design-tokens / ui-glass)— Tailwind / Vite 需要 ..."
+  for p in design-tokens ui-glass; do
+    pnpm --filter "@ai-kefu/$p" run build || return 1
+  done
   echo "[bootstrap] mvn -DskipTests install (第一次较慢) ..."
   mvn -q -DskipTests -T 1C install || return 1
   echo "[bootstrap] uv sync 各 Python 服务 ..."
