@@ -65,6 +65,12 @@ public class MessageService {
   }
 
   /** 历史分页:取 seq < before 的最近 limit 条。 */
+  /** 重连补漏 — 拉 seq > since 的增量(升序)。 */
+  public List<Message> since(String sessionId, long since, int limit) {
+    int safe = Math.min(Math.max(limit, 1), 200);
+    return repo.findSince(sessionId, since, safe);
+  }
+
   public List<Message> history(String sessionId, long before, int limit) {
     return repo.findHistory(sessionId, before, limit);
   }

@@ -20,5 +20,8 @@ public interface MessageRepository {
   /** 获取会话历史,按 seq 倒序分页:取 seq < before 的最新 limit 条。 */
   List<Message> findHistory(String sessionId, long before, int limit);
 
+  /** 拉增量:seq > since 的全部消息,按 seq 升序,最多 limit 条。客户端重连补漏用。 */
+  List<Message> findSince(String sessionId, long since, int limit);
+
   Optional<Message> findById(String id);
 }

@@ -50,6 +50,16 @@ public class InMemoryMessageRepository implements MessageRepository {
   }
 
   @Override
+  public List<Message> findSince(String sessionId, long since, int limit) {
+    List<Message> list = bySession.getOrDefault(sessionId, List.of());
+    return list.stream()
+        .filter(m -> m.getSeq() > since)
+        .sorted(Comparator.comparingLong(Message::getSeq))
+        .limit(limit)
+        .toList();
+  }
+
+  @Override
   public Optional<Message> findById(String id) {
     return Optional.ofNullable(byId.get(id));
   }

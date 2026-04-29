@@ -66,6 +66,16 @@ public class MongoMessageRepository implements MessageRepository {
   }
 
   @Override
+  public List<Message> findSince(String sessionId, long since, int limit) {
+    Criteria c = Criteria.where("sessionId").is(sessionId).and("seq").gt(since);
+    Query q =
+        new Query(c)
+            .with(Sort.by(Sort.Direction.ASC, "seq"))
+            .limit(Math.max(1, Math.min(limit, 200)));
+    return template.find(q, Message.class);
+  }
+
+  @Override
   public Optional<Message> findById(String id) {
     return Optional.ofNullable(template.findById(id, Message.class));
   }

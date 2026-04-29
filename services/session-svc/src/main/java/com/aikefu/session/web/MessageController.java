@@ -33,6 +33,17 @@ public class MessageController {
     this.messageService = messageService;
   }
 
+  /** 重连补漏 — 拉 seq > since 的增量(升序),便于客户端从 lastSeq 一键续上。 */
+  @GetMapping("/since")
+  public Map<String, Object> since(
+      @PathVariable("id") String id,
+      @RequestParam(value = "seq", defaultValue = "0") long since,
+      @RequestParam(value = "limit", defaultValue = "200") int limit) {
+    List<Message> items = messageService.since(id, since, limit);
+    long lastSeq = items.isEmpty() ? since : items.get(items.size() - 1).getSeq();
+    return Map.of("items", items, "last_seq", lastSeq, "has_more", items.size() == Math.min(limit, 200));
+  }
+
   /** 历史分页(seq 倒序)。 */
   @GetMapping
   public HistoryResponse history(
