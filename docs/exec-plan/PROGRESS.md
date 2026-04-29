@@ -36,7 +36,7 @@
 - [x] **T-217** web-admin 知识库管理(kb-svc GET /v1/kb/docs + DELETE/{id} + POST/{id}/reindex;agent-bff 透传;KbIngestPanel 顶部加文档列表 + 重嵌入 / 删除按钮)
 - [ ] **T-228** web-c 直播间快照卡 + 播放诊断卡
 - [ ] **T-229** web-admin 工具调试器
-- [ ] **T-227** sdk-jsbridge:setLiveContext / requestPlayDiagnostics 等
+- [x] **T-227** sdk-jsbridge:JsBridge 类 + getKefuBridge 单例;原生 → web 两级路由;接口齐:setLiveContext / requestPlayDiagnostics / switchQuality / reenterRoom / minimize / openLink / onOrientation / onPipChange
 - [x] **T-220+** livectx-svc 字段强校验(LiveContextValidator:scene/quality/state/report.type/network.type 枚举 + id 非负 + uid 正 + boolean 类型 + stream_url_hash 防明文 URL + fps∈[0,240];错误数组 400)
 - [x] **T-203** llm-router 限速 RPM/TPM + 日预算(QuotaManager 滑窗 + ModelProfile 加 budget_usd_daily/rate_in_per_1k/rate_out_per_1k;429 / 503 + X-Budget-Used-Pct 头;GET /v1/profiles/{id}/quota 快照)
 - [ ] **T-204** KMS 注入 Key + 测试连接
