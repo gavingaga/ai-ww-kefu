@@ -228,6 +228,37 @@ export interface QuickReplyRow {
   active?: boolean;
 }
 
+// ───── LLM 档位 ─────
+
+export interface LlmProfile {
+  id: string;
+  provider?: string;
+  base_url?: string;
+  api_key_last4?: string;
+  api_key?: string;
+  model?: string;
+  params?: Record<string, unknown>;
+  timeout_ms?: number;
+  rpm?: number;
+  tpm?: number;
+  budget_usd_daily?: number;
+  rate_in_per_1k?: number;
+  rate_out_per_1k?: number;
+  fallback_id?: string | null;
+  tags?: string[];
+}
+
+export interface LlmQuotaSnapshot {
+  rpm_used: number;
+  tpm_used: number;
+  rpm_limit: number;
+  tpm_limit: number;
+  budget_usd_daily: number;
+  today_cost_usd: number;
+  today_used_pct: number;
+  day: string;
+}
+
 // ───── 报表 ─────
 
 export interface ToolDef {

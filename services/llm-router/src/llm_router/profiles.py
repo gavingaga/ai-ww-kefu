@@ -95,6 +95,20 @@ class ProfileRegistry:
     def all(self) -> list[ModelProfile]:
         return list(self._by_id.values())
 
+    def upsert(self, profile: ModelProfile) -> ModelProfile:
+        """新增或更新 — 内存即时生效。
+
+        api_key 为空字符串时保留旧值(防管理后台未填 key 误清);明确传非空才覆盖。
+        """
+        existing = self._by_id.get(profile.id)
+        if existing and not profile.api_key and existing.api_key:
+            profile = profile.model_copy(update={"api_key": existing.api_key})
+        self._by_id[profile.id] = profile
+        return profile
+
+    def remove(self, profile_id: str) -> bool:
+        return self._by_id.pop(profile_id, None) is not None
+
     def chain(self, profile_id: str, max_depth: int = 3) -> list[ModelProfile]:
         """沿 fallback_id 解出路由链,最多 max_depth 层。"""
         out: list[ModelProfile] = []

@@ -92,6 +92,16 @@ public class RestClients {
         .build();
   }
 
+  @Bean(name = "llmRouterRestClient")
+  public RestClient llmRouterRestClient(
+      @Value("${aikefu.llm-router.url:http://localhost:8090}") String baseUrl,
+      @Value("${aikefu.llm-router.timeout-ms:5000}") int timeoutMs) {
+    return RestClient.builder()
+        .baseUrl(baseUrl)
+        .requestFactory(factory(timeoutMs))
+        .build();
+  }
+
   private static SimpleClientHttpRequestFactory factory(int timeoutMs) {
     SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
     f.setConnectTimeout(Duration.ofMillis(timeoutMs));

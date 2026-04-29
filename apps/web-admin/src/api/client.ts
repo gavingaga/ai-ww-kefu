@@ -152,6 +152,44 @@ export async function deleteQuickReply(id: string): Promise<void> {
   await fetch("/v1/admin/quick-replies/" + encodeURIComponent(id), { method: "DELETE" });
 }
 
+// ───── LLM 档位 ─────
+
+export function llmListProfiles(): Promise<import("./types.js").LlmProfile[]> {
+  return getJSON<import("./types.js").LlmProfile[]>("/v1/admin/llm-profiles");
+}
+
+export function llmCreateProfile(p: import("./types.js").LlmProfile): Promise<import("./types.js").LlmProfile> {
+  return postJSON<import("./types.js").LlmProfile>("/v1/admin/llm-profiles", p);
+}
+
+export function llmUpdateProfile(p: import("./types.js").LlmProfile): Promise<import("./types.js").LlmProfile> {
+  return putJSON<import("./types.js").LlmProfile>(
+    "/v1/admin/llm-profiles/" + encodeURIComponent(p.id),
+    p,
+  );
+}
+
+export async function llmDeleteProfile(id: string): Promise<void> {
+  const r = await fetch("/v1/admin/llm-profiles/" + encodeURIComponent(id), { method: "DELETE" });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+}
+
+export function llmTestProfile(
+  id: string,
+  prompt: string,
+): Promise<{ ok: boolean; sample?: string; error?: string }> {
+  return postJSON<{ ok: boolean; sample?: string; error?: string }>(
+    `/v1/admin/llm-profiles/${encodeURIComponent(id)}/test`,
+    { prompt },
+  );
+}
+
+export function llmProfileQuota(id: string): Promise<import("./types.js").LlmQuotaSnapshot> {
+  return getJSON<import("./types.js").LlmQuotaSnapshot>(
+    `/v1/admin/llm-profiles/${encodeURIComponent(id)}/quota`,
+  );
+}
+
 // ───── 工具调试器 ─────
 
 export function listTools(): Promise<import("./types.js").ToolDef[]> {

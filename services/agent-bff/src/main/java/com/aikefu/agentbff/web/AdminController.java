@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.aikefu.agentbff.clients.AuditClient;
 import com.aikefu.agentbff.clients.KbClient;
+import com.aikefu.agentbff.clients.LlmRouterClient;
 import com.aikefu.agentbff.clients.NotifyClient;
 import com.aikefu.agentbff.clients.ReportClient;
 import com.aikefu.agentbff.clients.RoutingClient;
@@ -36,6 +37,7 @@ public class AdminController {
   private final AuditClient audit;
   private final ReportClient report;
   private final ToolClient toolClient;
+  private final LlmRouterClient llm;
 
   public AdminController(
       KbClient kb,
@@ -43,13 +45,55 @@ public class AdminController {
       RoutingClient routing,
       AuditClient audit,
       ReportClient report,
-      ToolClient toolClient) {
+      ToolClient toolClient,
+      LlmRouterClient llm) {
     this.kb = kb;
     this.notify = notify;
     this.routing = routing;
     this.audit = audit;
     this.report = report;
     this.toolClient = toolClient;
+    this.llm = llm;
+  }
+
+  // ───── LLM 档位 ─────
+
+  @GetMapping("/llm-profiles")
+  public java.util.List<Map<String, Object>> llmListProfiles() {
+    return llm.listProfiles();
+  }
+
+  @PostMapping("/llm-profiles")
+  public Map<String, Object> llmCreateProfile(@RequestBody Map<String, Object> body) {
+    return llm.createProfile(body);
+  }
+
+  @org.springframework.web.bind.annotation.PutMapping("/llm-profiles/{id}")
+  public Map<String, Object> llmUpdateProfile(
+      @PathVariable("id") String id, @RequestBody Map<String, Object> body) {
+    return llm.updateProfile(id, body);
+  }
+
+  @DeleteMapping("/llm-profiles/{id}")
+  public Map<String, Object> llmDeleteProfile(@PathVariable("id") String id) {
+    return llm.deleteProfile(id);
+  }
+
+  @PostMapping("/llm-profiles/{id}/test")
+  public Map<String, Object> llmTestProfile(
+      @PathVariable("id") String id, @RequestBody(required = false) Map<String, Object> body) {
+    String prompt = body == null ? "" : String.valueOf(body.getOrDefault("prompt", ""));
+    return llm.testProfile(id, prompt);
+  }
+
+  @GetMapping("/llm-profiles/{id}/quota")
+  public Map<String, Object> llmQuota(@PathVariable("id") String id) {
+    return llm.profileQuota(id);
+  }
+
+  @GetMapping("/llm-profiles/{id}/health")
+  public Map<String, Object> llmHealth(@PathVariable("id") String id) {
+    return llm.profileHealth(id);
   }
 
   // ───── 工具调试器 ─────

@@ -30,7 +30,7 @@
 
 ## 优先级 P2(增强体验 + 配置后台)
 
-- [ ] **T-215** web-admin 模型档位 CRUD + 测试连接 + 试聊
+- [x] **T-215** web-admin LLM 档位 CRUD + 试聊 + 配额(llm-router POST/PUT/DELETE/v1/profiles + agent-bff /v1/admin/llm-profiles 透传 + LlmProfilesPanel:列表 / 表单 / api_key 留空保旧)
 - [ ] **T-216** Prompt 模板 A/B 切流
 - [ ] **T-219** web-admin 转人工策略可视化 + 决策预览
 - [x] **T-217** web-admin 知识库管理(kb-svc GET /v1/kb/docs + DELETE/{id} + POST/{id}/reindex;agent-bff 透传;KbIngestPanel 顶部加文档列表 + 重嵌入 / 删除按钮)

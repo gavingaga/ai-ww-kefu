@@ -47,6 +47,42 @@ def create_app(registry: ProfileRegistry | None = None) -> FastAPI:
             raise HTTPException(404, "profile not found")
         return quota.snapshot(pid)
 
+    @app.post("/v1/profiles")
+    async def create_profile(body: dict[str, Any]) -> dict[str, Any]:
+        from .profiles import ModelProfile
+
+        if "id" not in body or not str(body["id"]).strip():
+            raise HTTPException(400, "id required")
+        if reg.get(body["id"]):
+            raise HTTPException(409, f"profile already exists: {body['id']}")
+        p = ModelProfile.model_validate(body)
+        reg.upsert(p)
+        return p.safe_dict()
+
+    @app.put("/v1/profiles/{pid}")
+    async def update_profile(pid: str, body: dict[str, Any]) -> dict[str, Any]:
+        from .profiles import ModelProfile
+
+        existing = reg.get(pid)
+        if not existing:
+            raise HTTPException(404, "profile not found")
+        merged = {**body, "id": pid}
+        p = ModelProfile.model_validate(merged)
+        reg.upsert(p)
+        saved = reg.get(pid)
+        if saved is None:
+            raise HTTPException(500, "upsert failed")
+        return saved.safe_dict()
+
+    @app.delete("/v1/profiles/{pid}")
+    async def delete_profile(pid: str) -> dict[str, Any]:
+        if pid == "openai_default":
+            raise HTTPException(400, "cannot delete openai_default")
+        ok = reg.remove(pid)
+        if not ok:
+            raise HTTPException(404, "profile not found")
+        return {"ok": True, "id": pid}
+
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}

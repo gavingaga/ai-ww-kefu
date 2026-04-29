@@ -39,6 +39,9 @@ aikefu:
   ai-hub:
     url: ${AI_HUB_URL:http://localhost:8091}
     timeout-ms: 8000
+  llm-router:
+    url: ${LLM_ROUTER_URL:http://localhost:8090}
+    timeout-ms: 5000
   gateway-ws:
     # 留空则关闭"坐席消息直推 C 端"功能;C 端仍能通过会话历史拉到回复
     url: ${GATEWAY_WS_URL:}
