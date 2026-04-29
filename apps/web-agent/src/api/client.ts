@@ -176,6 +176,31 @@ export async function unobserve(supervisorId: number, sessionId: string): Promis
   return jsonOr<unknown>(r);
 }
 
+export interface DeviceHeartbeatResp {
+  ok: boolean;
+  holder: string;
+  evicted: string;
+}
+
+/** 同坐席多 Tab 互锁:启动 + 每 5s 调一次,服务端发现新 device 会推 device-evicted。 */
+export async function deviceHeartbeat(
+  agentId: number,
+  deviceId: string,
+): Promise<DeviceHeartbeatResp> {
+  const r = await fetch("/v1/agent/device/heartbeat", {
+    method: "POST",
+    headers: { ...headers(agentId), "X-Device-Id": deviceId },
+  });
+  return jsonOr<DeviceHeartbeatResp>(r);
+}
+
+export async function deviceRelease(agentId: number, deviceId: string): Promise<void> {
+  await fetch("/v1/agent/device/release", {
+    method: "POST",
+    headers: { ...headers(agentId), "X-Device-Id": deviceId },
+  });
+}
+
 export async function dashboard(): Promise<import("./types.js").DashboardData> {
   const r = await fetch(`/v1/supervisor/dashboard`);
   return jsonOr<import("./types.js").DashboardData>(r);

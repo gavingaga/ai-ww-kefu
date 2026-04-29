@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { accept, inbox, register, setStatus } from "./api/client.js";
+import {
+  accept,
+  deviceHeartbeat,
+  deviceRelease,
+  inbox,
+  register,
+  setStatus,
+} from "./api/client.js";
 import type { AgentInfo, AgentStatus, HandoffPacket, InboxResponse, QueueEntry, SessionView } from "./api/types.js";
 import { ContextPanel } from "./components/ContextPanel.js";
 import { ConversationView } from "./components/ConversationView.js";
@@ -45,6 +52,8 @@ export function App() {
   const [active, setActive] = useState<SessionView[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<"console" | "dashboard">("console");
+  const [evicted, setEvicted] = useState(false);
+  const deviceIdRef = useRef<string>(getOrCreateDeviceId());
   const packetMap = useRef<Map<string, HandoffPacket>>(new Map());
 
   const refresh = useCallback(async () => {
@@ -81,11 +90,40 @@ export function App() {
         console.error("[init]", err);
       }
 
+      // 同坐席多 Tab 互锁:启动 + 5s 心跳;evicted 时关停一切
+      let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+      const sendHeartbeat = async () => {
+        try {
+          const r = await deviceHeartbeat(cfg.agentId, deviceIdRef.current);
+          if (r.evicted && r.holder !== deviceIdRef.current) {
+            // 自己被抢走了(理论上不会进这里 — 因为 heartbeat 时我们写的是自己;
+            // 留兜底)
+            setEvicted(true);
+          }
+        } catch {
+          /* ignore */
+        }
+      };
+      void sendHeartbeat();
+      heartbeatTimer = setInterval(sendHeartbeat, 5000);
+
       // 优先 SSE,失败自动降级到 8s 轮询
       try {
         es = new EventSource(`/v1/agent/events?agent_id=${cfg.agentId}`);
         es.addEventListener("inbox-changed", () => void refresh());
         es.addEventListener("hello", () => void refresh());
+        es.addEventListener("device-evicted", (ev) => {
+          try {
+            const data = JSON.parse((ev as MessageEvent).data) as { evicted_device?: string };
+            if (data.evicted_device === deviceIdRef.current) {
+              setEvicted(true);
+              if (heartbeatTimer) clearInterval(heartbeatTimer);
+              es?.close();
+            }
+          } catch {
+            /* ignore */
+          }
+        });
         es.onerror = () => {
           if (cancelled) return;
           console.warn("[sse] error, fallback to polling 8s");
@@ -103,6 +141,8 @@ export function App() {
       cancelled = true;
       if (es) es.close();
       if (fallbackTimer) clearInterval(fallbackTimer);
+      // 离开页面时主动 release(同 device 才生效),避免新 Tab 进来还要等 TTL
+      void deviceRelease(cfg.agentId, deviceIdRef.current);
     };
   }, [cfg.agentId, cfg.nickname, cfg.skillGroups, refresh]);
 
@@ -129,6 +169,42 @@ export function App() {
   const selectedPacket = selected ? packetMap.current.get(selected) ?? null : null;
   const selectedSession = active.find((s) => s.id === selected) ?? null;
   const isSupervisor = cfg.role === "SUPERVISOR";
+
+  if (evicted) {
+    return (
+      <div
+        style={{
+          height: "100dvh",
+          display: "grid",
+          placeItems: "center",
+          padding: 24,
+          textAlign: "center",
+          background: "color-mix(in srgb, var(--color-danger) 8%, var(--color-surface))",
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0 }}>⚠ 此 Tab 已被另一设备登录顶下</h2>
+          <p style={{ color: "var(--color-text-secondary)", marginTop: 8 }}>
+            为防止同会话被两个设备双发,旧 Tab 已断开。
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: 16,
+              padding: "8px 16px",
+              border: "1px solid var(--color-border)",
+              borderRadius: 8,
+              background: "var(--color-surface)",
+              cursor: "pointer",
+            }}
+          >
+            重新接管(关闭其它 Tab 后)
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column" }}>
@@ -185,6 +261,24 @@ export function App() {
       )}
     </div>
   );
+}
+
+function getOrCreateDeviceId(): string {
+  // 用 sessionStorage 而不是 localStorage,新 Tab 必拿新 device 才能走互斥语义
+  const k = "aikefu.device.id";
+  try {
+    const cur = sessionStorage.getItem(k);
+    if (cur) return cur;
+    const id =
+      "dev-" +
+      (typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2) + Date.now().toString(36));
+    sessionStorage.setItem(k, id);
+    return id;
+  } catch {
+    return "dev-" + Date.now().toString(36);
+  }
 }
 
 function ViewTabs({
