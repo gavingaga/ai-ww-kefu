@@ -89,19 +89,31 @@ start_one() {
 }
 
 stop_one() {
-  local name="$1"
+  local name="$1" port="${2:-}"
   local pidfile="$PIDS/$name.pid"
-  if [[ ! -f "$pidfile" ]]; then return; fi
-  local pid
-  pid="$(cat "$pidfile")"
-  if kill -0 "$pid" 2>/dev/null; then
-    echo "  [stop] $name (pid=$pid)"
-    pkill -P "$pid" 2>/dev/null
-    kill "$pid" 2>/dev/null
-    sleep 0.2
-    kill -9 "$pid" 2>/dev/null
+  if [[ -f "$pidfile" ]]; then
+    local pid
+    pid="$(cat "$pidfile")"
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "  [stop] $name (pid=$pid)"
+      # 杀整个进程组(pnpm → node vite, mvn → java) 而不仅仅是父 bash
+      pkill -P "$pid" 2>/dev/null
+      kill "$pid" 2>/dev/null
+      sleep 0.2
+      kill -9 "$pid" 2>/dev/null
+    fi
+    rm -f "$pidfile"
   fi
-  rm -f "$pidfile"
+  # 兜底:按端口找占用进程并杀(start 经常派生孤儿:pnpm→node vite, mvn→java
+  # 子进程都活在父 bash 之外的会话,父死后端口照旧被占)
+  if [[ -n "$port" ]]; then
+    local lpid
+    lpid="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null | head -1)"
+    if [[ -n "$lpid" ]]; then
+      echo "  [stop:port] $name :$port pid=$lpid"
+      kill "$lpid" 2>/dev/null; sleep 0.2; kill -9 "$lpid" 2>/dev/null
+    fi
+  fi
 }
 
 status_one() {
@@ -143,7 +155,7 @@ cmd_stop() {
   echo "[stop] 关闭所有"
   while IFS='|' read -r name kind dir cmd port; do
     [[ -z "$name" ]] && continue
-    stop_one "$name"
+    stop_one "$name" "$port"
   done <<< "$SERVICES"
 }
 
