@@ -39,7 +39,7 @@
 - [x] **T-227** sdk-jsbridge:JsBridge 类 + getKefuBridge 单例;原生 → web 两级路由;接口齐:setLiveContext / requestPlayDiagnostics / switchQuality / reenterRoom / minimize / openLink / onOrientation / onPipChange
 - [x] **T-220+** livectx-svc 字段强校验(LiveContextValidator:scene/quality/state/report.type/network.type 枚举 + id 非负 + uid 正 + boolean 类型 + stream_url_hash 防明文 URL + fps∈[0,240];错误数组 400)
 - [x] **T-203** llm-router 限速 RPM/TPM + 日预算(QuotaManager 滑窗 + ModelProfile 加 budget_usd_daily/rate_in_per_1k/rate_out_per_1k;429 / 503 + X-Budget-Used-Pct 头;GET /v1/profiles/{id}/quota 快照)
-- [ ] **T-204** KMS 注入 Key + 测试连接
+- [x] **T-204** KMS 注入 Key(llm-router kms.py 抽象 + LocalKmsResolver 演示;profile.api_key 支持 kms://provider/key_id 启动时解出;日志只掩码末 4 位;5 测试 + ProfileRegistry.from_env 接入。试聊接口已存在,即 T-215 列表行内"试聊"按钮)
 
 ## 优先级 P3(平台化 / 长尾)
 

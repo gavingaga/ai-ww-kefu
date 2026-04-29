@@ -58,6 +58,8 @@ class ProfileRegistry:
 
     @classmethod
     def from_env(cls) -> "ProfileRegistry":
+        from .kms import KMS_PREFIX, LocalKmsResolver, resolve_api_key
+
         profiles: list[ModelProfile] = []
 
         path = os.getenv("LLM_PROFILES_FILE")
@@ -87,6 +89,13 @@ class ProfileRegistry:
                     tags=["default"],
                 ),
             )
+
+        # 把 kms:// 前缀的 api_key 解出真值;失败保留为空(走"未配置"路径)
+        resolver = LocalKmsResolver()
+        for p in profiles:
+            if p.api_key and p.api_key.startswith(KMS_PREFIX):
+                p.api_key = resolve_api_key(p.api_key, resolver)
+
         return cls(profiles)
 
     def get(self, profile_id: str) -> ModelProfile | None:
