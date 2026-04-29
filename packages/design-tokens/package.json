@@ -10,15 +10,22 @@
   "exports": {
     ".": {
       "types": "./dist/tokens.d.ts",
-      "import": "./dist/tokens.js"
+      "import": "./dist/tokens.js",
+      "require": "./dist/tokens.js",
+      "default": "./dist/tokens.js"
     },
     "./tailwind-preset": {
       "types": "./dist/tailwind-preset.d.ts",
-      "import": "./dist/tailwind-preset.js"
+      "import": "./dist/tailwind-preset.js",
+      "require": "./dist/tailwind-preset.js",
+      "default": "./dist/tailwind-preset.js"
     },
     "./tokens.css": "./src/tokens.css"
   },
-  "files": ["dist", "src/tokens.css"],
+  "files": [
+    "dist",
+    "src/tokens.css"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
