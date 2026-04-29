@@ -152,6 +152,34 @@ export async function deleteQuickReply(id: string): Promise<void> {
   await fetch("/v1/admin/quick-replies/" + encodeURIComponent(id), { method: "DELETE" });
 }
 
+// ───── Prompt A/B 比对 ─────
+
+export function listPrompts(): Promise<import("./types.js").PromptTemplate[]> {
+  return getJSON<import("./types.js").PromptTemplate[]>("/v1/admin/prompts");
+}
+
+export function previewPrompt(body: {
+  scene: string;
+  version?: number;
+  profile?: Record<string, unknown>;
+  live_context?: Record<string, unknown>;
+  summary?: string;
+  rag_chunks?: string;
+}): Promise<import("./types.js").PromptPreview> {
+  return postJSON<import("./types.js").PromptPreview>("/v1/admin/prompts/preview", body);
+}
+
+export function decidePreview(body: {
+  user_text: string;
+  live_context?: Record<string, unknown>;
+  profile?: Record<string, unknown>;
+}): Promise<import("./types.js").DecisionPreview> {
+  return postJSON<import("./types.js").DecisionPreview>("/v1/admin/ai/decide", {
+    session_id: "ses_admin_preview",
+    ...body,
+  });
+}
+
 // ───── LLM 档位 ─────
 
 export function llmListProfiles(): Promise<import("./types.js").LlmProfile[]> {

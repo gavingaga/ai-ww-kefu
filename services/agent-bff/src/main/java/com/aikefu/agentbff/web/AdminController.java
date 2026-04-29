@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.aikefu.agentbff.clients.AiHubClient;
 import com.aikefu.agentbff.clients.AuditClient;
 import com.aikefu.agentbff.clients.KbClient;
 import com.aikefu.agentbff.clients.LlmRouterClient;
@@ -38,6 +39,7 @@ public class AdminController {
   private final ReportClient report;
   private final ToolClient toolClient;
   private final LlmRouterClient llm;
+  private final AiHubClient aiHub;
 
   public AdminController(
       KbClient kb,
@@ -46,7 +48,8 @@ public class AdminController {
       AuditClient audit,
       ReportClient report,
       ToolClient toolClient,
-      LlmRouterClient llm) {
+      LlmRouterClient llm,
+      AiHubClient aiHub) {
     this.kb = kb;
     this.notify = notify;
     this.routing = routing;
@@ -54,6 +57,24 @@ public class AdminController {
     this.report = report;
     this.toolClient = toolClient;
     this.llm = llm;
+    this.aiHub = aiHub;
+  }
+
+  // ───── Prompt 模板 A/B + 决策预览 ─────
+
+  @GetMapping("/prompts")
+  public java.util.List<Map<String, Object>> listPrompts() {
+    return aiHub.listPrompts();
+  }
+
+  @PostMapping("/prompts/preview")
+  public Map<String, Object> previewPrompt(@RequestBody Map<String, Object> body) {
+    return aiHub.previewPrompt(body);
+  }
+
+  @PostMapping("/ai/decide")
+  public Map<String, Object> decidePreview(@RequestBody Map<String, Object> body) {
+    return aiHub.decidePreview(body);
   }
 
   // ───── LLM 档位 ─────

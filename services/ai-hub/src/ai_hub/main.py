@@ -85,6 +85,85 @@ def create_app(
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.post("/v1/ai/decide")
+    async def decide_preview(req: InferRequest) -> Any:
+        """决策预览 — 不调 LLM,只跑决策器 + FAQ / KB 匹配,告诉你最终会走哪条路。"""
+        await _enrich_live_context(req, lcc)
+        decision = decide(req.user_text)
+        out: dict[str, Any] = {
+            "decision": {
+                "action": decision.action,
+                "reason": decision.reason,
+                "confidence": decision.confidence,
+                "hits": decision.hits,
+            },
+            "live_context": req.live_context,
+        }
+        if decision.action == "handoff":
+            out["would_route"] = "handoff"
+            return out
+        try:
+            faq_hit = await fc.match(req.user_text)
+        except Exception:  # noqa: BLE001
+            faq_hit = None
+        if faq_hit:
+            out["would_route"] = "faq"
+            out["faq"] = {
+                "node_id": faq_hit.get("node_id"),
+                "title": faq_hit.get("title"),
+                "how": faq_hit.get("how"),
+                "score": faq_hit.get("score"),
+            }
+            return out
+        try:
+            kb_hit = await kc.match(req.user_text, top_k=5)
+        except Exception:  # noqa: BLE001
+            kb_hit = None
+        if kb_hit and float(kb_hit.get("score") or 0) >= rag_threshold:
+            out["would_route"] = "rag"
+            out["rag"] = {
+                "score": kb_hit.get("score"),
+                "top_title": kb_hit.get("top_title"),
+                "chunk_count": len(kb_hit.get("chunks") or []),
+            }
+            return out
+        out["would_route"] = "llm_general"
+        return out
+
+    @app.get("/v1/prompts")
+    async def list_prompts() -> Any:
+        from .prompt import get_registry
+
+        return [
+            {"id": t.id, "scene": t.scene, "version": t.version, "title": t.title, "source": t.source}
+            for t in get_registry().all()
+        ]
+
+    @app.post("/v1/prompts/preview")
+    async def preview_prompt(body: dict[str, Any]) -> Any:
+        """A/B 比对:渲染指定 (scene, version) 的 prompt。"""
+        scene = str(body.get("scene") or "default")
+        version = body.get("version")
+        try:
+            ver = int(version) if version is not None else None
+        except (TypeError, ValueError):
+            ver = None
+        rendered, tmpl = render_with_meta(
+            scene=scene,
+            version=ver,
+            profile=body.get("profile") or {"level": "VIP3"},
+            live_context=body.get("live_context") or {"scene": scene, "room_id": 8001},
+            summary=str(body.get("summary") or ""),
+            rag_chunks=str(body.get("rag_chunks") or ""),
+        )
+        return {
+            "scene": tmpl.scene,
+            "version": tmpl.version,
+            "title": tmpl.title,
+            "source": tmpl.source,
+            "rendered": rendered,
+        }
+
     @app.post("/v1/ai/suggest")
     async def suggest(req: InferRequest) -> Any:
         """坐席 AI 建议回复 — 非流式,返回 1~3 条候选短回复(JSON)。"""

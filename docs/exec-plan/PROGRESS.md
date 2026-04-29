@@ -31,8 +31,8 @@
 ## 优先级 P2(增强体验 + 配置后台)
 
 - [x] **T-215** web-admin LLM 档位 CRUD + 试聊 + 配额(llm-router POST/PUT/DELETE/v1/profiles + agent-bff /v1/admin/llm-profiles 透传 + LlmProfilesPanel:列表 / 表单 / api_key 留空保旧)
-- [ ] **T-216** Prompt 模板 A/B 切流
-- [ ] **T-219** web-admin 转人工策略可视化 + 决策预览
+- [x] **T-216** Prompt A/B 比对(ai-hub GET /v1/prompts + POST /v1/prompts/preview;PromptsPanel:scene 胶囊 + 双 version 选择 + 并排渲染)
+- [x] **T-219** web-admin 转人工策略可视化(ai-hub POST /v1/ai/decide 不调 LLM;DecisionPlaygroundPanel:5 用户语预设 + 决策路径流图 + decision 详情)
 - [x] **T-217** web-admin 知识库管理(kb-svc GET /v1/kb/docs + DELETE/{id} + POST/{id}/reindex;agent-bff 透传;KbIngestPanel 顶部加文档列表 + 重嵌入 / 删除按钮)
 - [x] **T-228** web-c RoomSnapshotCard(房间/节目/清晰度/卡顿/网络 Tag + 播放诊断按钮 → verdict 高亮 + 切清晰度 / 重进直播间)
 - [x] **T-229** web-admin ToolPlaygroundPanel(列出 tool-svc 工具 + 选定工具看 schema + JSON 编辑 args/ctx + invoke 后看 result/audit_id;agent-bff /v1/admin/tools 透传)

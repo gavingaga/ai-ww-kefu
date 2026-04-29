@@ -24,4 +24,30 @@ public class AiHubClient {
         .retrieve()
         .body(new ParameterizedTypeReference<>() {});
   }
+
+  public java.util.List<Map<String, Object>> listPrompts() {
+    return client
+        .get()
+        .uri("/v1/prompts")
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
+  public Map<String, Object> previewPrompt(Map<String, Object> body) {
+    return client
+        .post()
+        .uri("/v1/prompts/preview")
+        .body(body)
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
+  public Map<String, Object> decidePreview(Map<String, Object> body) {
+    return client
+        .post()
+        .uri("/v1/ai/decide")
+        .body(body)
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
 }

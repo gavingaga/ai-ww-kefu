@@ -248,6 +248,35 @@ export interface LlmProfile {
   tags?: string[];
 }
 
+export interface PromptTemplate {
+  id: string;
+  scene: string;
+  version: number;
+  title: string;
+  source: string;
+}
+
+export interface PromptPreview {
+  scene: string;
+  version: number;
+  title: string;
+  source: string;
+  rendered: string;
+}
+
+export interface DecisionPreview {
+  decision: {
+    action: "handoff" | "faq" | "rag" | "llm_general" | "tool";
+    reason: string;
+    confidence: number;
+    hits: string[];
+  };
+  would_route: "handoff" | "faq" | "rag" | "llm_general";
+  faq?: { node_id?: string; title?: string; how?: string; score?: number };
+  rag?: { score?: number; top_title?: string; chunk_count?: number };
+  live_context?: Record<string, unknown>;
+}
+
 export interface LlmQuotaSnapshot {
   rpm_used: number;
   tpm_used: number;

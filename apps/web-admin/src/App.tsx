@@ -4,12 +4,14 @@ import type { AdminRole } from "./api/types.js";
 import { clearSession, loadSession, type AdminSession } from "./auth/session.js";
 import { AuditPanel } from "./components/AuditPanel.js";
 import { DashboardPanel } from "./components/DashboardPanel.js";
+import { DecisionPlaygroundPanel } from "./components/DecisionPlaygroundPanel.js";
 import { FaqPanel } from "./components/FaqPanel.js";
 import { KbDebugPanel } from "./components/KbDebugPanel.js";
 import { KbIngestPanel } from "./components/KbIngestPanel.js";
 import { LlmProfilesPanel } from "./components/LlmProfilesPanel.js";
 import { LoginGate } from "./components/LoginGate.js";
 import { NoticesPanel } from "./components/NoticesPanel.js";
+import { PromptsPanel } from "./components/PromptsPanel.js";
 import { ReportsPanel } from "./components/ReportsPanel.js";
 import { ToolPlaygroundPanel } from "./components/ToolPlaygroundPanel.js";
 
@@ -22,7 +24,9 @@ type Page =
   | "kb-ingest"
   | "faq"
   | "tools"
-  | "llm";
+  | "llm"
+  | "prompts"
+  | "decision";
 
 interface NavItem {
   key: Page;
@@ -42,6 +46,8 @@ const NAV: NavItem[] = [
   { key: "faq", label: "FAQ 节点管理", hint: "树编辑 + 命中模拟器", minRole: "ADMIN" },
   { key: "tools", label: "工具调试器", hint: "tool-svc invoke,验参数 / dry_run", minRole: "ADMIN" },
   { key: "llm", label: "LLM 档位", hint: "增删改 + 试聊 + 配额", minRole: "ADMIN" },
+  { key: "prompts", label: "Prompt A/B", hint: "scene / version 并排预览", minRole: "ADMIN" },
+  { key: "decision", label: "决策预览", hint: "看用户语会走哪条路", minRole: "SUPERVISOR" },
 ];
 
 const ROLE_RANK: Record<AdminRole, number> = { ADMIN: 3, SUPERVISOR: 2, AGENT: 1 };
@@ -135,6 +141,8 @@ export function App() {
         {currentPage === "faq" ? <FaqPanel /> : null}
         {currentPage === "tools" ? <ToolPlaygroundPanel /> : null}
         {currentPage === "llm" ? <LlmProfilesPanel /> : null}
+        {currentPage === "prompts" ? <PromptsPanel /> : null}
+        {currentPage === "decision" ? <DecisionPlaygroundPanel /> : null}
       </main>
     </div>
   );
