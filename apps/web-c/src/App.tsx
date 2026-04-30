@@ -171,15 +171,33 @@ export function App() {
         ]);
         return;
       }
-      // 4) 流式结束 — 占位思考气泡转正常(若仍为空,显示提示)
-      if (f.type === "msg.chunk" && f.payload?.end) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.kind === "text" && m.thinking
-              ? { ...m, thinking: false, text: m.text || "（已结束）" }
-              : m,
-          ),
-        );
+      // 4) 流式 token / 结束帧
+      if (f.type === "msg.chunk") {
+        const chunk = typeof f.payload?.chunk === "string" ? (f.payload.chunk as string) : "";
+        const end = !!f.payload?.end;
+        // 跳过 gateway-ws 的连接欢迎帧 — 它有 chunk="welcome\n" + end=true,会被
+        // 误吞用户后续真问题的 thinking 占位
+        if (chunk === "welcome\n" && end) {
+          return;
+        }
+        setMessages((prev) => {
+          // 累加 token 到当前唯一的 thinking 气泡;end=true 时把 thinking 关掉
+          const idx = [...prev].reverse().findIndex((m) => m.kind === "text" && m.thinking);
+          if (idx === -1) return prev;
+          const realIdx = prev.length - 1 - idx;
+          const cur = prev[realIdx]!;
+          if (cur.kind !== "text") return prev;
+          const nextText = (cur.text ?? "") + chunk;
+          const updated = {
+            ...cur,
+            text: end && !nextText ? "（已结束）" : nextText,
+            thinking: end ? false : true,
+          };
+          const out = prev.slice();
+          out[realIdx] = updated;
+          return out;
+        });
+        return;
       }
     });
     ws.start();
