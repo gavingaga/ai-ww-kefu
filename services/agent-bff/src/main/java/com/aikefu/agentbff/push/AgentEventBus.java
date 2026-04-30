@@ -78,4 +78,11 @@ public class AgentEventBus {
     var bucket = byAgent.get(agentId);
     return bucket == null ? 0 : bucket.size();
   }
+
+  /** 广播给当前所有有订阅的 agentId。给「队列变化」「公告」这类全员事件用。 */
+  public void broadcast(String name, Object data) {
+    for (Long id : byAgent.keySet()) {
+      if (id != null) publish(id, name, data);
+    }
+  }
 }

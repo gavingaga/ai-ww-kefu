@@ -14,12 +14,33 @@ import type {
 
 /** 走 vite proxy → agent-bff /v1/admin/* 透传到 kb-svc。 */
 
+const SESSION_KEY = "ai-kefu.admin.session";
+
+function authHeader(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw) as { token?: string };
+    return obj.token ? { Authorization: `Bearer ${obj.token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
+/** 401 / 403 时清掉本地 session,触发 App 回到登录页。 */
+function checkAuth(r: Response): void {
+  if (r.status === 401 || r.status === 403) {
+    localStorage.removeItem(SESSION_KEY);
+  }
+}
+
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(path, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...authHeader() },
     body: JSON.stringify(body),
   });
+  checkAuth(r);
   if (!r.ok) {
     const text = await r.text().catch(() => "");
     throw new Error(`${r.status} ${r.statusText} ${text}`);
@@ -28,7 +49,8 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function getJSON<T>(path: string): Promise<T> {
-  const r = await fetch(path);
+  const r = await fetch(path, { headers: authHeader() });
+  checkAuth(r);
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return (await r.json()) as T;
 }
@@ -36,13 +58,22 @@ async function getJSON<T>(path: string): Promise<T> {
 async function putJSON<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(path, {
     method: "PUT",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...authHeader() },
     body: JSON.stringify(body),
   });
+  checkAuth(r);
   if (!r.ok) {
     const text = await r.text().catch(() => "");
     throw new Error(`${r.status} ${r.statusText} ${text}`);
   }
+  return (await r.json()) as T;
+}
+
+async function deleteJSON<T>(path: string): Promise<T> {
+  const r = await fetch(path, { method: "DELETE", headers: authHeader() });
+  checkAuth(r);
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  if (r.status === 204) return {} as T;
   return (await r.json()) as T;
 }
 
@@ -122,8 +153,154 @@ export interface AuditQueryInput {
   limit?: number;
 }
 
-export function login(username: string, password: string): Promise<LoginResponse> {
-  return postJSON<LoginResponse>("/v1/admin/login", { username, password });
+/** 真实后端返的 user 形态;前端 AdminRole 由 roles[] 映射得到。 */
+interface BackendUser {
+  id: number;
+  username: string;
+  email?: string;
+  displayName?: string;
+  roles: string[];
+  agentId?: number;
+  disabled?: boolean;
+}
+interface BackendLoginResponse {
+  token: string;
+  user: BackendUser;
+  expires_in: number;
+}
+
+/**
+ * 把后端 roles[] 映射到前端 AdminRole(三档枚举):
+ *   owner / admin → ADMIN
+ *   supervisor → SUPERVISOR
+ *   其它(agent / viewer / developer)→ AGENT
+ */
+function mapRole(roles: string[] | undefined): "ADMIN" | "SUPERVISOR" | "AGENT" {
+  const s = new Set((roles ?? []).map((r) => r.toLowerCase()));
+  if (s.has("owner") || s.has("admin")) return "ADMIN";
+  if (s.has("supervisor")) return "SUPERVISOR";
+  return "AGENT";
+}
+
+export async function login(identifier: string, password: string): Promise<LoginResponse> {
+  const r = await fetch("/v1/admin/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ identifier, password }),
+  });
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    throw new Error(`登录失败: ${r.status} ${text}`);
+  }
+  const data = (await r.json()) as BackendLoginResponse;
+  return {
+    ok: true,
+    token: data.token,
+    user: { username: data.user.username, role: mapRole(data.user.roles) },
+  };
+}
+
+export async function logout(): Promise<void> {
+  await fetch("/v1/admin/auth/logout", { method: "POST", headers: authHeader() });
+}
+
+// ───── 组织管理(用户 / 坐席 / 技能组) ─────
+
+export interface AdminUserView {
+  id: number;
+  username: string;
+  email?: string;
+  displayName?: string;
+  roles: string[];
+  agentId?: number;
+  disabled?: boolean;
+  createdAt?: string;
+  lastLoginAt?: string;
+}
+
+export function listAdminUsers(): Promise<{
+  items: AdminUserView[];
+  offset: number;
+  limit: number;
+}> {
+  return getJSON("/v1/admin/users?offset=0&limit=200");
+}
+
+export function inviteUser(body: {
+  username?: string;
+  email?: string;
+  displayName?: string;
+  password?: string;
+  roles?: string[];
+  agentId?: number;
+}): Promise<{ user: AdminUserView; temporary_password?: string }> {
+  return postJSON("/v1/admin/users/invite", body);
+}
+
+export function setUserDisabled(id: number, disabled: boolean): Promise<AdminUserView> {
+  return postJSON(`/v1/admin/users/${id}/${disabled ? "disable" : "enable"}`, {});
+}
+
+export function resetUserPassword(
+  id: number,
+): Promise<{ user_id: number; temporary_password: string }> {
+  return postJSON(`/v1/admin/users/${id}/reset-password`, {});
+}
+
+export function setUserRoles(id: number, roles: string[]): Promise<AdminUserView> {
+  return putJSON(`/v1/admin/users/${id}/roles`, { roles });
+}
+
+export interface AdminAgentView {
+  id: number;
+  nickname?: string;
+  avatarUrl?: string;
+  status?: string;
+  role?: "AGENT" | "SUPERVISOR";
+  skillGroups?: string[];
+  maxConcurrency?: number;
+  activeSessionIds?: string[];
+}
+
+export function listAdminAgents(): Promise<AdminAgentView[]> {
+  return getJSON("/v1/admin/agents");
+}
+
+export function updateAdminAgent(
+  id: number,
+  patch: Partial<AdminAgentView>,
+): Promise<AdminAgentView> {
+  return putJSON(`/v1/admin/agents/${id}`, patch);
+}
+
+export interface SkillGroupView {
+  id: number;
+  code: string;
+  name?: string;
+  description?: string;
+  parentCode?: string;
+  priority?: number;
+  slaSeconds?: number;
+  active?: boolean;
+}
+
+export function listSkillGroups(): Promise<SkillGroupView[]> {
+  return getJSON("/v1/admin/skill-groups");
+}
+
+export function createSkillGroup(body: SkillGroupView): Promise<SkillGroupView> {
+  return postJSON("/v1/admin/skill-groups", body);
+}
+
+export function updateSkillGroup(
+  id: number,
+  body: Partial<SkillGroupView>,
+): Promise<SkillGroupView> {
+  return putJSON(`/v1/admin/skill-groups/${id}`, body);
+}
+
+export function deactivateSkillGroup(id: number): Promise<SkillGroupView> {
+  return deleteJSON(`/v1/admin/skill-groups/${id}`);
 }
 
 // ───── 公告 / 快捷按钮 ─────
@@ -186,11 +363,15 @@ export function llmListProfiles(): Promise<import("./types.js").LlmProfile[]> {
   return getJSON<import("./types.js").LlmProfile[]>("/v1/admin/llm-profiles");
 }
 
-export function llmCreateProfile(p: import("./types.js").LlmProfile): Promise<import("./types.js").LlmProfile> {
+export function llmCreateProfile(
+  p: import("./types.js").LlmProfile,
+): Promise<import("./types.js").LlmProfile> {
   return postJSON<import("./types.js").LlmProfile>("/v1/admin/llm-profiles", p);
 }
 
-export function llmUpdateProfile(p: import("./types.js").LlmProfile): Promise<import("./types.js").LlmProfile> {
+export function llmUpdateProfile(
+  p: import("./types.js").LlmProfile,
+): Promise<import("./types.js").LlmProfile> {
   return putJSON<import("./types.js").LlmProfile>(
     "/v1/admin/llm-profiles/" + encodeURIComponent(p.id),
     p,

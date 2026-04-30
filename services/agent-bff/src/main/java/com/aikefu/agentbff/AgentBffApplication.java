@@ -2,6 +2,7 @@ package com.aikefu.agentbff;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * agent-bff 启动类。
@@ -10,6 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * notify-svc(快捷短语 / FAQ),给 web-agent 提供精简的统一接口。
  */
 @SpringBootApplication
+@EnableScheduling
 public class AgentBffApplication {
 
   public static void main(String[] args) {

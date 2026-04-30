@@ -43,10 +43,18 @@ aikefu:
     url: ${LLM_ROUTER_URL:http://localhost:8090}
     timeout-ms: 5000
   gateway-ws:
-    # 留空则关闭"坐席消息直推 C 端"功能;C 端仍能通过会话历史拉到回复
-    url: ${GATEWAY_WS_URL:}
+    # 坐席消息直推 C 端 WS 的内部入口;留空则降级为只落库,不实时推
+    url: ${GATEWAY_WS_URL:http://localhost:8080}
     internal-token: ${GATEWAY_INTERNAL_PUSH_TOKEN:}
     timeout-ms: 1500
+  admin:
+    jwt:
+      secret: ${ADMIN_JWT_SECRET:}
+      ttl-seconds: ${ADMIN_JWT_TTL_SECONDS:43200}
+    bootstrap:
+      username: ${ADMIN_BOOTSTRAP_USERNAME:admin}
+      password: ${ADMIN_BOOTSTRAP_PASSWORD:admin}
+      email: ${ADMIN_BOOTSTRAP_EMAIL:admin@local}
 
 management:
   endpoints:

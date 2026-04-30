@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -14,6 +15,7 @@ import (
 	"github.com/ai-kefu/gateway-ws/internal/dispatch"
 	"github.com/ai-kefu/gateway-ws/internal/frame"
 	"github.com/ai-kefu/gateway-ws/internal/hub"
+	"github.com/ai-kefu/gateway-ws/internal/visitor"
 	"github.com/ai-kefu/gateway-ws/internal/wsconn"
 )
 
@@ -25,6 +27,7 @@ type Server struct {
 	upgrader   websocket.Upgrader
 	router     wsconn.Router
 	logger     *slog.Logger
+	verifier   *visitor.Verifier // 配置 VISITOR_JWT_SECRET 后启用 token 校验
 }
 
 // New 构造服务器。router 可为空(默认 echo);dispatcher 可空(单进程 noop)。
@@ -46,17 +49,27 @@ func New(
 		router:     router,
 		logger:     logger,
 		upgrader:   websocket.Upgrader{CheckOrigin: originAllow, ReadBufferSize: 4096, WriteBufferSize: 4096},
+		verifier:   visitor.NewVerifier(cfg.VisitorJWTSecret),
 	}
 }
 
 // Handler 返回 HTTP mux。
+//
+// 注:Go 1.22+ ServeMux 拒绝空 pattern;cfg 字段如果留空(测试常用 Config{})就跳过,
+// 避免 init 期 panic 影响测试。
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc(s.cfg.HealthPath, s.handleHealth)
-	mux.HandleFunc(s.cfg.ReadyPath, s.handleReady)
-	mux.HandleFunc("/metrics-lite", s.handleStats)
-	mux.HandleFunc("/internal/push", s.handleInternalPush)
-	mux.HandleFunc(s.cfg.WSPath, s.handleWS)
+	register := func(pattern string, h http.HandlerFunc) {
+		if pattern == "" {
+			return
+		}
+		mux.HandleFunc(pattern, h)
+	}
+	register(s.cfg.HealthPath, s.handleHealth)
+	register(s.cfg.ReadyPath, s.handleReady)
+	register("/metrics-lite", s.handleStats)
+	register("/internal/push", s.handleInternalPush)
+	register(s.cfg.WSPath, s.handleWS)
 	return mux
 }
 
@@ -137,6 +150,24 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	if uid == "" {
 		uid = "anonymous"
 	}
+	tokenStr := r.URL.Query().Get("token")
+	sidFromToken := ""
+
+	// 配了 secret = token 强校验:必须带 token、必须验签通过,否则 401。
+	// 没配 secret = 兼容旧 demo 链路:有 token 则尝试解析,失败仅日志。
+	if s.verifier.Enabled() {
+		claims, err := s.verifier.Verify(tokenStr)
+		if err != nil {
+			s.logger.Info("ws token rejected", "err", err)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		sidFromToken = claims.SID
+		if claims.Subject > 0 {
+			uid = strconv.FormatInt(claims.Subject, 10)
+		}
+	}
+
 	ws, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.logger.Info("upgrade failed", "err", err)
@@ -151,7 +182,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		MaxFrameBytes:     s.cfg.MaxFrameBytes,
 		MaxPendingPerConn: s.cfg.MaxPendingPerConn,
 	}, uid)
-	if sid := r.URL.Query().Get("session_id"); sid != "" {
+	// 优先用 token 中的 sid(已验签);否则回落 query session_id(dev 兼容)。
+	if sidFromToken != "" {
+		c.SetSessionID(sidFromToken)
+	} else if sid := r.URL.Query().Get("session_id"); sid != "" {
 		c.SetSessionID(sid)
 	}
 	s.hub.Register(c)

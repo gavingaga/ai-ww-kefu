@@ -1,8 +1,8 @@
+import { Avatar, Bubble } from "@ai-kefu/ui-glass";
 import { useEffect, useRef } from "react";
 
-import { Avatar, Bubble } from "@ai-kefu/ui-glass";
-
 import type { MediaContent, Message, ToolCallContent } from "../mocks/data.js";
+
 import { CsatBubble } from "./CsatBubble.js";
 import { FaqAnswerCard } from "./FaqAnswerCard.js";
 import { RagCitation } from "./RagCitation.js";
@@ -89,16 +89,14 @@ function Row({
   onToolConfirm?: (tool: ToolCallContent) => void;
   onToolCancel?: (tool: ToolCallContent) => void;
   onToolRetry?: (tool: ToolCallContent) => void;
-  onCsatSubmit?: (msgId: string, input: { rating: number; tags: string[]; comment?: string }) => void;
+  onCsatSubmit?: (
+    msgId: string,
+    input: { rating: number; tags: string[]; comment?: string },
+  ) => void;
 }) {
   if (m.kind === "faq") {
     return (
-      <FaqAnswerCard
-        faq={m.faq}
-        onSend={onSend}
-        onHandoff={onHandoff}
-        onOpenLink={onOpenLink}
-      />
+      <FaqAnswerCard faq={m.faq} onSend={onSend} onHandoff={onHandoff} onOpenLink={onOpenLink} />
     );
   }
   if (m.kind === "tool") {
@@ -118,18 +116,14 @@ function Row({
     return <MediaBubble m={m} />;
   }
   if (m.kind === "csat") {
-    return (
-      <CsatBubble
-        csat={m.csat}
-        onSubmit={(input) => onCsatSubmit?.(m.id, input)}
-      />
-    );
+    return <CsatBubble csat={m.csat} onSubmit={(input) => onCsatSubmit?.(m.id, input)} />;
   }
   if (m.role === "system") {
     return <Bubble role="system">{m.text}</Bubble>;
   }
   const isUser = m.role === "user";
   const breathing = m.role === "ai" && m.thinking;
+  const failed = m.kind === "text" && m.failed === true;
   return (
     <div
       style={{
@@ -148,7 +142,26 @@ function Row({
         />
       )}
       <Bubble role={m.role} thinking={m.thinking}>
-        <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>
+        {failed ? (
+          <button
+            type="button"
+            onClick={() => {
+              const r = m.kind === "text" ? m.retryText : "";
+              if (r) onSend(r);
+            }}
+            style={{
+              all: "unset",
+              cursor: "pointer",
+              color: "var(--color-danger, #d33)",
+              fontSize: 13,
+            }}
+            title="点击重发"
+          >
+            {m.text}
+          </button>
+        ) : (
+          <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>
+        )}
       </Bubble>
     </div>
   );
@@ -204,10 +217,8 @@ function MediaBubble({ m }: { m: Extract<Message, { kind: "image" | "file" }> })
         )}
         <div style={{ marginTop: 4, fontSize: 11, opacity: 0.8 }}>
           {media.size ? formatSize(media.size) : null}
-          {media.progress != null && media.progress < 100 ? (
-            <> · 上传中 {media.progress}%</>
-          ) : null}
-          {media.error ? <span style={{ color: "#ffb"}}> · 失败:{media.error}</span> : null}
+          {media.progress != null && media.progress < 100 ? <> · 上传中 {media.progress}%</> : null}
+          {media.error ? <span style={{ color: "#ffb" }}> · 失败:{media.error}</span> : null}
         </div>
       </div>
     </div>

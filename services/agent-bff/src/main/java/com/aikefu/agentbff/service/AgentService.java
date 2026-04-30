@@ -187,15 +187,13 @@ public class AgentService {
     return out;
   }
 
-  /** 接受派单:routing.assign + (TODO) session.attachAgent + 状态推 IN_AGENT。
-   *
-   * <p>session-svc 在 M2 起步只暴露状态机跃迁的隐式 API(由 ai-hub 触发);M3
-   * 真实接入后这里需要再调 session.attachAgent。当前先打 routing.assign 完成派单。
-   */
+  /** 接受派单:routing.assign + session.assign(IN_AGENT + 绑定 agentId)。 */
   public Map<String, Object> accept(long agentId, String entryId) {
     Map<String, Object> r = routing.assign(agentId, entryId);
+    // routing-svc 返 camelCase sessionId(Spring 默认序列化),兼容也读 snake_case 防 client 改名翻车。
+    Object sid = r == null ? null : (r.get("sessionId") != null ? r.get("sessionId") : r.get("session_id"));
+    if (sid != null) safeAssign(String.valueOf(sid), agentId);
     inboxChanged(agentId);
-    Object sid = r == null ? null : r.get("session_id");
     audit(
         "session.accept",
         agentId,
@@ -220,9 +218,15 @@ public class AgentService {
     return Map.of("ok", true, "session_id", sessionId);
   }
 
-  /** 转回 AI 托管(暂同 close + 由 ai-hub 重启会话);M3 末细化。 */
+  /** 转回 AI 托管:释放 routing 占用 + session.status → AI,会话立即回到「AI 托管中」。 */
   public Map<String, Object> transferToAi(long agentId, String sessionId) {
     routing.release(agentId, sessionId);
+    try {
+      session.releaseToAi(sessionId);
+    } catch (RuntimeException e) {
+      org.slf4j.LoggerFactory.getLogger(AgentService.class)
+          .warn("[transferToAi] session.releaseToAi failed sid={} err={}", sessionId, e.toString());
+    }
     inboxChanged(agentId);
     audit("session.transfer_to_ai", agentId, "AGENT", sessionId, "transfer to AI");
     return Map.of("ok", true, "session_id", sessionId, "transferred", "ai");
@@ -236,8 +240,55 @@ public class AgentService {
   /** 上下行同步:更新坐席状态。 */
   public Map<String, Object> setStatus(long agentId, String status) {
     Map<String, Object> r = routing.setStatus(agentId, status);
+    // 进 IDLE 时顺手对账一次,清掉因服务重启 / 异常路径残留的孤儿 active 会话,避免假满载阻塞 accept。
+    if ("IDLE".equalsIgnoreCase(status)) reconcileAgentLoad(agentId);
     inboxChanged(agentId);
     return r;
+  }
+
+  /**
+   * 对账坐席的 activeSessionIds:routing-svc 那侧的引用与 session-svc 真实状态比对,清孤儿。
+   *
+   * <p>触发场景:routing-svc 重启后内存丢、跨服务消息丢、close 路径漏 release —
+   * 都会让 routing 那边累积已 CLOSED / 不存在的 sessionId,把 maxConcurrency 占满,
+   * 后续 accept 直接 409。这里做幂等清扫,只保留确定还在 IN_AGENT / QUEUEING 的会话。
+   */
+  public void reconcileAgentLoad(long agentId) {
+    Map<String, Object> agent;
+    try {
+      agent = routing.getAgent(agentId);
+    } catch (RuntimeException e) {
+      return;
+    }
+    if (agent == null) return;
+    Object raw = agent.get("activeSessionIds");
+    if (!(raw instanceof java.util.Collection<?> col) || col.isEmpty()) return;
+    int released = 0;
+    for (Object o : col) {
+      if (o == null) continue;
+      String sid = String.valueOf(o);
+      boolean keep;
+      try {
+        Map<String, Object> s = session.session(sid);
+        Object st = s == null ? null : s.get("status");
+        keep = st != null && ("IN_AGENT".equals(st) || "QUEUEING".equals(st));
+      } catch (RuntimeException notFoundOrErr) {
+        // session 已不存在 / 接口异常,按孤儿处理
+        keep = false;
+      }
+      if (!keep) {
+        try {
+          routing.release(agentId, sid);
+          released++;
+        } catch (RuntimeException ignored) {
+          // 单条失败不阻塞下一条
+        }
+      }
+    }
+    if (released > 0) {
+      org.slf4j.LoggerFactory.getLogger(AgentService.class)
+          .info("[reconcile] agent={} released {} stale sessions", agentId, released);
+    }
   }
 
   /** AI 托管会话列表(坐席台「AI 托管中」板块用)。 */
@@ -253,7 +304,15 @@ public class AgentService {
   /** 坐席代发消息 — 落库 + 实时推到 C 端 WS + 通知坐席侧 SSE。 */
   public Map<String, Object> sendMessage(
       String sessionId, String idempotencyKey, Map<String, Object> body, Long senderAgentId) {
-    Map<String, Object> saved = session.append(sessionId, idempotencyKey, body);
+    Map<String, Object> saved;
+    try {
+      saved = session.append(sessionId, idempotencyKey, body);
+    } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.NOT_FOUND,
+          "session_not_found:" + sessionId,
+          e);
+    }
     pushToClient(sessionId, saved, "agent");
     publishSessionMessage(sessionId, saved, senderAgentId);
     return saved;
@@ -267,7 +326,20 @@ public class AgentService {
 
   /** 注册 / 登录:坐席首次接入时往 routing 写一份。 */
   public Map<String, Object> registerOrUpdate(Map<String, Object> body) {
-    return routing.registerAgent(body);
+    Map<String, Object> r = routing.registerAgent(body);
+    // 注册即对账一次:防止 routing-svc 内存里存着上一周期的孤儿 active session,把名额占满。
+    Object idObj = body == null ? null : body.get("id");
+    if (idObj instanceof Number n) {
+      long id = n.longValue();
+      reconcileAgentLoad(id);
+      // 返回 reconcile 后的最新视图,前端不会先看到一瞬间的 BUSY/满载。
+      try {
+        return routing.getAgent(id);
+      } catch (RuntimeException ignored) {
+        return r;
+      }
+    }
+    return r;
   }
 
   // ───── 主管干预(T-302) ─────
@@ -313,6 +385,8 @@ public class AgentService {
   /** 抢接 — 把会话从原坐席手中转给主管。 */
   public Map<String, Object> steal(long supervisorId, long fromAgentId, String sessionId) {
     Map<String, Object> r = routing.transfer(fromAgentId, supervisorId, sessionId);
+    // routing 成功后切 session.status → IN_AGENT 并绑定 agentId,避免会话仍挂在「AI 托管中」。
+    safeAssign(sessionId, supervisorId);
     inboxChanged(supervisorId, fromAgentId);
     audit(
         "supervisor.steal",
@@ -328,6 +402,7 @@ public class AgentService {
   /** 通用转接:agent → 另一个 agent / supervisor。 */
   public Map<String, Object> transfer(long fromAgentId, long toAgentId, String sessionId) {
     Map<String, Object> r = routing.transfer(fromAgentId, toAgentId, sessionId);
+    safeAssign(sessionId, toAgentId);
     inboxChanged(fromAgentId, toAgentId);
     audit(
         "supervisor.transfer",
@@ -338,6 +413,19 @@ public class AgentService {
         "transfer to " + toAgentId,
         Map.of("from_agent_id", fromAgentId, "to_agent_id", toAgentId));
     return r;
+  }
+
+  /**
+   * 调 session-svc 把会话切到 IN_AGENT + 绑定 agentId。失败仅记日志,routing 已成功不回滚 —
+   * 真出错时人工兜底好于让转接半中阻塞。
+   */
+  private void safeAssign(String sessionId, long agentId) {
+    try {
+      session.assign(sessionId, agentId);
+    } catch (RuntimeException e) {
+      org.slf4j.LoggerFactory.getLogger(AgentService.class)
+          .warn("[assign] failed sid={} agent={} err={}", sessionId, agentId, e.toString());
+    }
   }
 
   public java.util.List<Map<String, Object>> supervisors() {

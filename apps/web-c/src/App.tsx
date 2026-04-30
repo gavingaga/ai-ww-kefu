@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-
-import type { ClientStatus, ReconnectingWS } from "@ai-kefu/ws-client";
 import { GlassCard, MarqueeBar } from "@ai-kefu/ui-glass";
+import type { ClientStatus, ReconnectingWS } from "@ai-kefu/ws-client";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Composer } from "./components/Composer.js";
 import { ConnectionBar } from "./components/ConnectionBar.js";
-import { RoomSnapshotCard } from "./components/RoomSnapshotCard.js";
 import { MessageList } from "./components/MessageList.js";
 import { QuickReplies } from "./components/QuickReplies.js";
+import { RoomSnapshotCard } from "./components/RoomSnapshotCard.js";
 import {
   announcements,
   initialMessages,
@@ -19,7 +18,50 @@ import {
 import { preflight, uploadFile } from "./upload/uploadFile.js";
 import { createWs } from "./ws/createClient.js";
 
-const SESSION_ID = "ses_demo";
+/** 取或生成 device_id — 标识访客的稳定设备指纹,localStorage 持久化。 */
+function deviceId(): string {
+  const k = "aikefu.device_id";
+  try {
+    const cur = localStorage.getItem(k);
+    if (cur) return cur;
+    const id =
+      "dev-" +
+      (typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2) + Date.now().toString(36));
+    localStorage.setItem(k, id);
+    return id;
+  } catch {
+    return "dev-fallback-" + Date.now().toString(36);
+  }
+}
+
+const TENANT_ID = 1;
+const DEVICE_ID = deviceId();
+const TOKEN_KEY = "aikefu.visitor.token";
+
+interface VisitorAuthResp {
+  token: string;
+  visitor_id: number;
+  session_id: string;
+  ws_endpoint: string;
+  expires_in: number;
+}
+
+async function visitorAuth(prevToken: string | null): Promise<VisitorAuthResp> {
+  const r = await fetch("/v1/visitors/auth", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      device_id: DEVICE_ID,
+      tenant_id: TENANT_ID,
+      channel: "web",
+      ...(prevToken ? { token: prevToken } : {}),
+    }),
+  });
+  if (!r.ok) throw new Error(`/v1/visitors/auth ${r.status}`);
+  return (await r.json()) as VisitorAuthResp;
+}
 
 /**
  * C 端 Web H5 入口 — 布局四区。
@@ -42,9 +84,57 @@ export function App() {
   });
 
   const wsRef = useRef<ReconnectingWS | null>(null);
+  const [sessionId, setSessionId] = useState<string>("");
+  const [token, setToken] = useState<string>("");
+  const [visitorId, setVisitorId] = useState<number>(0);
+  const [wsEndpoint, setWsEndpoint] = useState<string>("");
+  const sessionIdRef = useRef<string>("");
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  // /v1/visitors/auth — 拿 token + sid + ws_endpoint;有缓存先送上去尝试续期。
+  useEffect(() => {
+    let cancelled = false;
+    const cached = (() => {
+      try {
+        return localStorage.getItem(TOKEN_KEY);
+      } catch {
+        return null;
+      }
+    })();
+    visitorAuth(cached)
+      .then((d) => {
+        if (cancelled) return;
+        setToken(d.token);
+        setSessionId(d.session_id);
+        setVisitorId(d.visitor_id);
+        setWsEndpoint(d.ws_endpoint);
+        try {
+          localStorage.setItem(TOKEN_KEY, d.token);
+        } catch {
+          // ignore
+        }
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        console.warn("[visitor-auth] failed:", e);
+        // 鉴权挂了仍允许 UI 跑(走离线 mock 链路)
+        setSessionId(`ses_anon_${DEVICE_ID.slice(0, 8)}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
-    const ws = createWs();
+    if (!sessionId) return;
+    const ws = createWs({
+      sessionId,
+      uid: visitorId || undefined,
+      token: token || undefined,
+      url: wsEndpoint || undefined,
+    });
     if (!ws) return;
     wsRef.current = ws;
     const offState = ws.on("status", setStatus);
@@ -81,6 +171,65 @@ export function App() {
         });
         return;
       }
+      // 1.5) 图片 / 文件帧 — 服务端回执(自己上传的本地预览靠 client_msg_id 去重)
+      // 或对端坐席发来的图片 / 文件
+      if (f.type === "msg.image" || f.type === "msg.file") {
+        const p = (f.payload ?? {}) as {
+          url?: string;
+          filename?: string;
+          size?: number;
+          content_type?: string;
+          contentType?: string;
+          role?: "ai" | "agent" | "system" | "user";
+          client_msg_id?: string;
+        };
+        const url = typeof p.url === "string" ? p.url : "";
+        if (!url) return;
+        const isImage = f.type === "msg.image";
+        const role = (p.role as "ai" | "agent" | "system" | "user" | undefined) ?? "agent";
+        const cmid = p.client_msg_id ? String(p.client_msg_id) : null;
+        setMessages((prev) => {
+          // 去掉 thinking 占位
+          const cleaned = prev.filter((m) => !(m.kind === "text" && m.thinking));
+          // 自己上传的回执:本地已有 `up-<cmid>` 预览气泡,不再重复
+          if (cmid && cleaned.some((m) => m.id === cmid)) {
+            // 用服务端 url 替换本地 blob: 预览,清掉 progress
+            return cleaned.map((m) =>
+              (m.kind === "image" || m.kind === "file") && m.id === cmid
+                ? {
+                    ...m,
+                    media: {
+                      ...m.media,
+                      url,
+                      filename: p.filename ?? m.media.filename,
+                      size: typeof p.size === "number" ? p.size : m.media.size,
+                      contentType: p.content_type ?? p.contentType ?? m.media.contentType,
+                      progress: undefined,
+                    },
+                  }
+                : m,
+            );
+          }
+          if (role === "user") return cleaned;
+          return [
+            ...cleaned,
+            {
+              kind: isImage ? "image" : "file",
+              id: f.msg_id ?? `s-${f.seq ?? Date.now()}`,
+              role,
+              ts: f.ts ?? Date.now(),
+              media: {
+                url,
+                filename: String(p.filename ?? (isImage ? "image" : "file")),
+                size: typeof p.size === "number" ? p.size : 0,
+                contentType: String(p.content_type ?? p.contentType ?? ""),
+              },
+            },
+          ];
+        });
+        return;
+      }
+
       // 2) FAQ 卡片
       if (f.type === "msg.faq") {
         const p = f.payload ?? {};
@@ -207,19 +356,21 @@ export function App() {
       ws.close();
       wsRef.current = null;
     };
-  }, []);
+  }, [sessionId, token, wsEndpoint, visitorId]);
 
   const sendUser = useCallback((text: string) => {
+    const userMsgId = `u-${Date.now()}`;
+    const placeholderId = `a-${Date.now()}`;
     const userMsg: Message = {
       kind: "text",
-      id: `u-${Date.now()}`,
+      id: userMsgId,
       role: "user",
       text,
       ts: Date.now(),
     };
     const placeholder: Message = {
       kind: "text",
-      id: `a-${Date.now()}`,
+      id: placeholderId,
       role: "ai",
       text: "",
       ts: Date.now() + 1,
@@ -227,11 +378,29 @@ export function App() {
     };
     setMessages((prev) => [...prev, userMsg, placeholder]);
 
+    // 不论 ws 还是离线 mock 路径,8s 仍 thinking 视为失败:
+    // 兼修网络抖断 / 服务端沉默 / sid 还没 ready 等场景
+    setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.kind === "text" && m.id === placeholderId && m.thinking
+            ? {
+                ...m,
+                thinking: false,
+                failed: true,
+                retryText: text,
+                text: "⚠ 发送失败,点击重试",
+              }
+            : m,
+        ),
+      );
+    }, 8000);
+
     const ws = wsRef.current;
     if (ws && ws.status().state === "open") {
       ws.send({
         type: "msg.text",
-        session_id: SESSION_ID,
+        session_id: sessionIdRef.current,
         payload: { text },
       });
       return;
@@ -259,8 +428,7 @@ export function App() {
             ? {
                 ...m,
                 thinking: false,
-                text:
-                  "已收到。AI / FAQ / RAG 链路接入后,这里会给到具体答复。\n(当前为离线 mock,未连接 ws)",
+                text: "已收到。AI / FAQ / RAG 链路接入后,这里会给到具体答复。\n(当前为离线 mock,未连接 ws)",
               }
             : m,
         ),
@@ -318,7 +486,7 @@ export function App() {
   const handoffToAgent = useCallback(() => {
     const ws = wsRef.current;
     if (ws && ws.status().state === "open") {
-      ws.send({ type: "event.handoff", session_id: SESSION_ID });
+      ws.send({ type: "event.handoff", session_id: sessionIdRef.current });
     }
     setMessages((prev) => [
       ...prev,
@@ -361,10 +529,7 @@ export function App() {
   );
 
   const onCsatSubmit = useCallback(
-    async (
-      msgId: string,
-      input: { rating: number; tags: string[]; comment?: string },
-    ) => {
+    async (msgId: string, input: { rating: number; tags: string[]; comment?: string }) => {
       const submittedAt = Date.now();
       // 乐观更新 UI
       setMessages((prev) =>
@@ -389,7 +554,7 @@ export function App() {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            session_id: SESSION_ID,
+            session_id: sessionIdRef.current,
             rating: input.rating,
             tags: input.tags,
             comment: input.comment,
@@ -403,7 +568,7 @@ export function App() {
       if (ws && ws.status().state === "open") {
         ws.send({
           type: "event.csat",
-          session_id: SESSION_ID,
+          session_id: sessionIdRef.current,
           payload: { rating: input.rating, tags: input.tags, comment: input.comment },
         });
       }
@@ -475,7 +640,7 @@ export function App() {
       if (ws && ws.status().state === "open") {
         ws.send({
           type: isImage ? "msg.image" : "msg.file",
-          session_id: SESSION_ID,
+          session_id: sessionIdRef.current,
           payload: {
             url: r.url,
             filename: file.name,

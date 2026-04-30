@@ -48,4 +48,19 @@ public class SessionClient {
   public void close(String id) {
     client.post().uri("/v1/sessions/{id}/close", id).retrieve().toBodilessEntity();
   }
+
+  /** 接管会话:status → IN_AGENT 并绑定 agentId(供 supervisor.steal / agent.transfer 使用)。 */
+  public Map<String, Object> assign(String id, long agentId) {
+    return client
+        .post()
+        .uri("/v1/sessions/{id}/assign", id)
+        .body(Map.of("agent_id", agentId))
+        .retrieve()
+        .body(new ParameterizedTypeReference<>() {});
+  }
+
+  /** 转回 AI 托管:status → AI(坐席「转回 AI」)。 */
+  public void releaseToAi(String id) {
+    client.post().uri("/v1/sessions/{id}/release-to-ai", id).retrieve().toBodilessEntity();
+  }
 }

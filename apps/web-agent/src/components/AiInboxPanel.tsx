@@ -1,8 +1,8 @@
+import { Capsule, GlassCard } from "@ai-kefu/ui-glass";
 import { useEffect, useState } from "react";
 
-import { Capsule, GlassCard } from "@ai-kefu/ui-glass";
-
 import { listAiSessions, steal, type AiSessionRow } from "../api/client.js";
+
 import { ConversationView } from "./ConversationView.js";
 
 /**
@@ -10,7 +10,14 @@ import { ConversationView } from "./ConversationView.js";
  * 必要时坐席可点「接管」从 AI 抢过来(走 supervisor.steal 通用逻辑,
  * from_agent_id=0 表示当前没人接)。
  */
-export function AiInboxPanel({ agentId }: { agentId: number }) {
+export function AiInboxPanel({
+  agentId,
+  onStolen,
+}: {
+  agentId: number;
+  /** 接管成功后回调:由 App 切到「工作台」并选中此会话,确保历史 + 输入框立刻可见。 */
+  onStolen?: (sessionId: string) => void;
+}) {
   const [rows, setRows] = useState<AiSessionRow[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -34,6 +41,7 @@ export function AiInboxPanel({ agentId }: { agentId: number }) {
       await steal(agentId, 0, sid);
       setSelected(null);
       refresh();
+      onStolen?.(sid);
     } catch (e) {
       setErr(String((e as Error).message));
     } finally {
@@ -65,7 +73,16 @@ export function AiInboxPanel({ agentId }: { agentId: number }) {
             暂无 AI 托管会话
           </div>
         ) : (
-          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+          <ul
+            style={{
+              listStyle: "none",
+              margin: 0,
+              padding: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
             {rows.map((r) => {
               const lc = (r.liveContext ?? {}) as Record<string, unknown>;
               const scene = String(lc.scene ?? "—");
@@ -88,10 +105,18 @@ export function AiInboxPanel({ agentId }: { agentId: number }) {
                       color: "inherit",
                     }}
                   >
-                    <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--color-text-secondary)" }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontFamily: "var(--font-mono)",
+                        color: "var(--color-text-secondary)",
+                      }}
+                    >
                       {r.id.slice(0, 22)}…
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 2 }}>
+                    <div
+                      style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 2 }}
+                    >
                       {scene}
                       {room ? ` · #${room}` : ""}
                       {r.startedAt ? ` · ${new Date(r.startedAt).toLocaleTimeString()}` : ""}

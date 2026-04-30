@@ -29,3 +29,9 @@ aikefu:
     store: ${SESSION_STORE:memory}
     history-page-size: 30
     max-pending-handoff-seconds: 180
+  visitor:
+    jwt:
+      # 生产必须配 ≥32 字节强密钥;留空则进程级随机(每次重启失效),仅 dev 可用。
+      secret: ${VISITOR_JWT_SECRET:}
+      ttl-seconds: ${VISITOR_JWT_TTL_SECONDS:604800}
+    ws-endpoint: ${VISITOR_WS_ENDPOINT:ws://localhost:8080/v1/ws}

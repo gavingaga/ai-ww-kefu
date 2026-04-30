@@ -76,6 +76,10 @@ public class RoutingClient {
         .body(new ParameterizedTypeReference<>() {});
   }
 
+  public List<Map<String, Object>> listAgents() {
+    return client.get().uri("/v1/agents").retrieve().body(new ParameterizedTypeReference<>() {});
+  }
+
   public Map<String, Object> stats() {
     return client.get().uri("/v1/stats").retrieve().body(new ParameterizedTypeReference<>() {});
   }

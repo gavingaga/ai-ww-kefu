@@ -8,12 +8,19 @@ import {
   register,
   setStatus,
 } from "./api/client.js";
-import type { AgentInfo, AgentStatus, HandoffPacket, InboxResponse, QueueEntry, SessionView } from "./api/types.js";
+import type {
+  AgentInfo,
+  AgentStatus,
+  HandoffPacket,
+  InboxResponse,
+  QueueEntry,
+  SessionView,
+} from "./api/types.js";
+import { AiInboxPanel } from "./components/AiInboxPanel.js";
 import { ContextPanel } from "./components/ContextPanel.js";
 import { ConversationView } from "./components/ConversationView.js";
 import { SessionList } from "./components/SessionList.js";
 import { StatusBar } from "./components/StatusBar.js";
-import { AiInboxPanel } from "./components/AiInboxPanel.js";
 import { SupervisorDashboard } from "./components/SupervisorDashboard.js";
 
 /**
@@ -36,9 +43,11 @@ function readQueryConfig(): QueryConfig {
   const url = new URL(window.location.href);
   const agentId = Number(url.searchParams.get("agent_id") ?? 1);
   const nickname = url.searchParams.get("nickname") ?? `坐席${agentId}`;
-  const skillGroups =
-    url.searchParams.get("skill_groups")?.split(",").map((s) => s.trim()).filter(Boolean) ??
-    ["general", "play_tech", "membership_payment"];
+  const skillGroups = url.searchParams
+    .get("skill_groups")
+    ?.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean) ?? ["general", "play_tech", "membership_payment"];
   const role =
     (url.searchParams.get("role") ?? "AGENT").toUpperCase() === "SUPERVISOR"
       ? "SUPERVISOR"
@@ -167,7 +176,7 @@ export function App() {
     }
   };
 
-  const selectedPacket = selected ? packetMap.current.get(selected) ?? null : null;
+  const selectedPacket = selected ? (packetMap.current.get(selected) ?? null) : null;
   const selectedSession = active.find((s) => s.id === selected) ?? null;
   const isSupervisor = cfg.role === "SUPERVISOR";
 
@@ -218,7 +227,15 @@ export function App() {
       <ViewTabs view={view} onChange={setView} isSupervisor={isSupervisor} />
       {view === "ai-inbox" ? (
         <div style={{ flex: 1, padding: 12, overflow: "hidden" }}>
-          <AiInboxPanel agentId={cfg.agentId} />
+          <AiInboxPanel
+            agentId={cfg.agentId}
+            onStolen={(sid) => {
+              // 接管后立刻切到工作台并选中,让坐席看到完整历史 + 输入框
+              setView("console");
+              setSelected(sid);
+              void refresh();
+            }}
+          />
         </div>
       ) : isSupervisor && view === "dashboard" ? (
         <div style={{ flex: 1, padding: 12, overflow: "hidden" }}>

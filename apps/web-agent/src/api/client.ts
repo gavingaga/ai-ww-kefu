@@ -106,6 +106,31 @@ export async function reply(
   return jsonOr<MessageView>(r);
 }
 
+/** 坐席发图片 / 文件:type=image|file,content 带 url/filename/size/content_type。 */
+export async function replyMedia(
+  agentId: number,
+  sessionId: string,
+  kind: "image" | "file",
+  media: { url: string; filename: string; size: number; contentType: string },
+  clientMsgId?: string,
+): Promise<MessageView> {
+  const r = await fetch(`${BASE}/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    method: "POST",
+    headers: headers(agentId, clientMsgId ? { "Idempotency-Key": clientMsgId } : undefined),
+    body: JSON.stringify({
+      type: kind,
+      content: {
+        url: media.url,
+        filename: media.filename,
+        size: media.size,
+        content_type: media.contentType,
+      },
+      clientMsgId: clientMsgId ?? `agent-${kind}-${Date.now()}`,
+    }),
+  });
+  return jsonOr<MessageView>(r);
+}
+
 export async function peek(agentId: number): Promise<QueueEntry | null> {
   const r = await fetch(`${BASE}/peek`, { method: "POST", headers: headers(agentId) });
   if (r.status === 204) return null;

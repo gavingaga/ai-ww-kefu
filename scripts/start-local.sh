@@ -58,6 +58,10 @@ export KB_SVC_URL=http://localhost:8092
 export GATEWAY_WS_URL=http://localhost:8080
 export AI_HUB_LLM_INLINE_MOCK=1   # 不用真实 LLM
 
+# 访客 JWT 共享密钥(session-svc 与 gateway-ws 必须一致;留空时走 dev 兼容,
+# 配置后 gateway-ws 强校验 token,无 token / 假 token 一律 401)。
+export VISITOR_JWT_SECRET=${VISITOR_JWT_SECRET:-aikefu-local-dev-shared-secret-32+}
+
 bootstrap() {
   echo "[bootstrap] pnpm install ..."
   pnpm i || return 1

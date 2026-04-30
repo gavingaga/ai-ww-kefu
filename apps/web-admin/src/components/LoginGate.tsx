@@ -1,22 +1,21 @@
-import { useState } from "react";
-
 import { Capsule, GlassCard } from "@ai-kefu/ui-glass";
+import { useState } from "react";
 
 import { login } from "../api/client.js";
 import { saveSession, type AdminSession } from "../auth/session.js";
 
 export function LoginGate({ onLogin }: { onLogin: (s: AdminSession) => void }) {
-  const [username, setUsername] = useState("admin");
+  const [identifier, setIdentifier] = useState("admin");
   const [password, setPassword] = useState("admin");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    if (!username.trim() || !password) return;
+    if (!identifier.trim() || !password) return;
     setBusy(true);
     setErr(null);
     try {
-      const r = await login(username.trim(), password);
+      const r = await login(identifier.trim(), password);
       const s: AdminSession = { token: r.token, username: r.user.username, role: r.user.role };
       saveSession(s);
       onLogin(s);
@@ -45,14 +44,14 @@ export function LoginGate({ onLogin }: { onLogin: (s: AdminSession) => void }) {
         <div>
           <h2 style={{ margin: 0, fontSize: 18 }}>客服管理后台</h2>
           <p style={{ margin: "4px 0 0", color: "var(--color-text-tertiary)", fontSize: 12 }}>
-            mock 登录:用户名含 admin/sup 自动给到对应角色
+            可用用户名或邮箱登录(默认 admin / admin)
           </p>
         </div>
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>用户名</span>
+          <span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>用户名 / 邮箱</span>
           <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.nativeEvent.isComposing) submit();
             }}
@@ -72,7 +71,12 @@ export function LoginGate({ onLogin }: { onLogin: (s: AdminSession) => void }) {
           />
         </label>
         {err ? <span style={{ color: "#d33", fontSize: 12 }}>错误:{err}</span> : null}
-        <Capsule size="md" variant="primary" onClick={submit} disabled={busy || !username.trim() || !password}>
+        <Capsule
+          size="md"
+          variant="primary"
+          onClick={submit}
+          disabled={busy || !identifier.trim() || !password}
+        >
           {busy ? "登录中…" : "登录"}
         </Capsule>
       </GlassCard>

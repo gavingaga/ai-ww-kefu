@@ -38,6 +38,9 @@ type Config struct {
 	// /v1/agent/_internal/session-message;空则关闭
 	AgentBffURL   string
 	AgentBffToken string
+
+	// 访客 JWT 共享密钥(与 session-svc 一致);空则关闭 token 校验,沿用旧的 session_id query。
+	VisitorJWTSecret string
 }
 
 // Load 从环境变量读取配置。
@@ -65,6 +68,7 @@ func Load() Config {
 		InternalPushToken:    envStr("GATEWAY_INTERNAL_PUSH_TOKEN", ""),
 		AgentBffURL:          envStr("AGENT_BFF_URL", ""),
 		AgentBffToken:        envStr("AGENT_BFF_INTERNAL_TOKEN", ""),
+		VisitorJWTSecret:     envStr("VISITOR_JWT_SECRET", ""),
 	}
 }
 

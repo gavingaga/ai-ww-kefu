@@ -123,6 +123,10 @@ export type Message =
       text: string;
       ts: number;
       thinking?: boolean;
+      /** 发送失败标记;若有,UI 显示「⚠ 发送失败」并允许点击重试 */
+      failed?: boolean;
+      /** 失败时,允许 UI 调起原文重发(由 App 注入 retry 句柄不便,这里直接存原文) */
+      retryText?: string;
     }
   | {
       kind: "faq";

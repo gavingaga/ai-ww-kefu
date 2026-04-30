@@ -71,17 +71,29 @@ func (s *Session) Handle(ctx context.Context, _ *wsconn.Conn, in frame.Frame) ([
 		}()
 	}
 
-	// 入库回执:服务端推一帧 msg.<type>,带 client_msg_id,客户端清 pending
-	payload, _ := json.Marshal(map[string]interface{}{
-		"text":          extractText(in.Payload),
+	// 入库回执:Type 与原帧一致(text/image/file),payload 透传 content + 服务端写入元信息。
+	// 这样图片/文件回执也能保留 url/filename/size,客户端按 client_msg_id 替换本地预览。
+	ackPayload := map[string]interface{}{
 		"role":          m.Role,
 		"client_msg_id": m.ClientMsgID,
 		"server_seq":    m.Seq,
 		"msg_id":        m.ID,
-	})
+	}
+	for k, v := range content {
+		// content 字段优先(url/filename/size/content_type/text),不被服务端元信息覆盖
+		if _, taken := ackPayload[k]; !taken {
+			ackPayload[k] = v
+		}
+	}
+	if _, hasText := ackPayload["text"]; !hasText {
+		if t := extractText(in.Payload); t != "" {
+			ackPayload["text"] = t
+		}
+	}
+	payload, _ := json.Marshal(ackPayload)
 	return []frame.Frame{
 		{
-			Type:        frame.TypeMsgText,
+			Type:        in.Type,
 			SessionID:   in.SessionID,
 			ClientMsgID: m.ClientMsgID,
 			MsgID:       m.ID,

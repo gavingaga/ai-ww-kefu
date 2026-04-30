@@ -16,7 +16,8 @@
     "@ai-kefu/design-tokens": "workspace:*",
     "@ai-kefu/ui-glass": "workspace:*",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.27.0"
   },
   "devDependencies": {
     "@ai-kefu/eslint-config": "workspace:*",

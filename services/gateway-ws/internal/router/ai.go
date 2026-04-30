@@ -53,14 +53,13 @@ func (r *AI) Handle(ctx context.Context, conn *wsconn.Conn, in frame.Frame) ([]f
 	return nil, nil
 }
 
-func (r *AI) streamContext(parent context.Context) context.Context {
+func (r *AI) streamContext(_ context.Context) context.Context {
 	if r.StreamCtx != nil {
 		return r.StreamCtx()
 	}
-	if parent == nil {
-		parent = context.Background()
-	}
-	c, _ := context.WithTimeout(parent, 30*time.Second) //nolint:govet // cancel by ctx parent
+	// 不要把 frame.Handle 的 ctx 透传 — 它在 Handle 返回后立刻 cancel,
+	// 会取消我们 fire-and-forget 的流式 goroutine,导致 ai-hub 调用 0 token 失败。
+	c, _ := context.WithTimeout(context.Background(), 30*time.Second) //nolint:govet // cancel by ctx parent
 	return c
 }
 

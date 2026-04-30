@@ -66,6 +66,26 @@ public class SessionController {
     return ResponseEntity.noContent().build();
   }
 
+  /**
+   * 接管会话(steal / transfer 走的同一入口)— 状态切到 IN_AGENT 并绑定坐席。
+   *
+   * <p>body: {@code {"agent_id": <long>, "skill_group_id": <long?>}}。
+   * 与 {@code handoff} 的区别是直跃 IN_AGENT 跳过排队 — 适合主管 steal 或定向 transfer。
+   */
+  @PostMapping("/sessions/{id}/assign")
+  public Session assign(@PathVariable("id") String id, @RequestBody Map<String, Object> body) {
+    long agentId = ((Number) body.getOrDefault("agent_id", 0L)).longValue();
+    long skillGroupId = ((Number) body.getOrDefault("skill_group_id", 0L)).longValue();
+    sessionService.transition(id, SessionStatus.IN_AGENT);
+    return sessionService.attachAgent(id, agentId, skillGroupId);
+  }
+
+  /** 把 IN_AGENT 会话回托管给 AI(坐席「转回 AI」按钮),IN_AGENT → AI 状态机已允许。 */
+  @PostMapping("/sessions/{id}/release-to-ai")
+  public Session releaseToAi(@PathVariable("id") String id) {
+    return sessionService.transition(id, SessionStatus.AI);
+  }
+
   /** 更新 live_context(切清晰度 / 卡顿 / 换房间 触发)。 */
   @PostMapping("/sessions/{id}/live-context")
   public ResponseEntity<Void> updateLiveContext(

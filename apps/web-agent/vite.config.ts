@@ -21,6 +21,10 @@ export default defineConfig({
         target: process.env.VITE_AGENT_BFF_URL ?? "http://localhost:8084",
         changeOrigin: true,
       },
+      "/v1/upload": {
+        target: process.env.VITE_UPLOAD_URL ?? "http://localhost:8088",
+        changeOrigin: true,
+      },
     },
   },
   build: {

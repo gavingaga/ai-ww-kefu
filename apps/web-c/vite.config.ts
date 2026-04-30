@@ -14,6 +14,14 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
     proxy: {
+      "/v1/sessions": {
+        target: process.env.VITE_SESSION_URL ?? "http://localhost:8081",
+        changeOrigin: true,
+      },
+      "/v1/visitors": {
+        target: process.env.VITE_SESSION_URL ?? "http://localhost:8081",
+        changeOrigin: true,
+      },
       "/v1/upload": {
         target: process.env.VITE_UPLOAD_URL ?? "http://localhost:8088",
         changeOrigin: true,

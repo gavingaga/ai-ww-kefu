@@ -14,7 +14,7 @@ import com.aikefu.session.domain.SessionStatus;
  * <p>跃迁表(详见 PRD 01-业务流程与场景.md):
  *
  * <pre>
- *   AI         → QUEUEING / CLOSED
+ *   AI         → QUEUEING / IN_AGENT(主管 steal / 直接接管,跳过排队) / CLOSED
  *   QUEUEING   → IN_AGENT / AI / CLOSED
  *   IN_AGENT   → CLOSED / QUEUEING(转接) / AI(回托管)
  *   CLOSED     → (终态,任何跃迁非法)
@@ -24,7 +24,8 @@ import com.aikefu.session.domain.SessionStatus;
 public class SessionStateMachine {
   private static final Map<SessionStatus, EnumSet<SessionStatus>> ALLOWED =
       Map.of(
-          SessionStatus.AI, EnumSet.of(SessionStatus.QUEUEING, SessionStatus.CLOSED),
+          SessionStatus.AI,
+              EnumSet.of(SessionStatus.QUEUEING, SessionStatus.IN_AGENT, SessionStatus.CLOSED),
           SessionStatus.QUEUEING,
               EnumSet.of(SessionStatus.IN_AGENT, SessionStatus.AI, SessionStatus.CLOSED),
           SessionStatus.IN_AGENT,
