@@ -44,6 +44,10 @@ public class SessionService {
     return repo.findById(id).orElseThrow(() -> new SessionNotFoundException(id));
   }
 
+  public java.util.List<Session> listByStatus(String status, int limit) {
+    return repo.listByStatus(status, limit);
+  }
+
   /** 状态跃迁,返回更新后的会话。 */
   public Session transition(String id, SessionStatus to) {
     Session s = getById(id);

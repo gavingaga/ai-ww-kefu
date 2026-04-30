@@ -56,6 +56,21 @@ public class MongoSessionRepository implements SessionRepository {
   }
 
   @Override
+  public java.util.List<Session> listByStatus(String status, int limit) {
+    int safe = Math.min(Math.max(limit, 1), 200);
+    Query q = new Query();
+    if (status != null && !status.isBlank()) {
+      try {
+        q.addCriteria(Criteria.where("status").is(SessionStatus.valueOf(status.toUpperCase())));
+      } catch (IllegalArgumentException ignored) {
+        return java.util.List.of();
+      }
+    }
+    q.with(Sort.by(Sort.Direction.DESC, "startedAt")).limit(safe);
+    return template.find(q, Session.class);
+  }
+
+  @Override
   public long nextSeq(String sessionId) {
     Query q = Query.query(Criteria.where("_id").is(sessionId));
     Update u = new Update().inc("seq", 1L);

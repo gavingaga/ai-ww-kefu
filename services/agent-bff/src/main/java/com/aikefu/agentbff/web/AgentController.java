@@ -55,6 +55,16 @@ public class AgentController {
     return svc.inbox(agentId);
   }
 
+  /** AI 托管中的会话列表(坐席台「AI 托管中」板块):默认 status=ai。 */
+  @GetMapping("/ai-sessions")
+  public java.util.List<Map<String, Object>> aiSessions(
+      @org.springframework.web.bind.annotation.RequestParam(value = "status", defaultValue = "ai")
+          String status,
+      @org.springframework.web.bind.annotation.RequestParam(value = "limit", defaultValue = "100")
+          int limit) {
+    return svc.listSessionsByStatus(status, limit);
+  }
+
   @PostMapping("/peek")
   public ResponseEntity<Map<String, Object>> peek(@RequestHeader("X-Agent-Id") long agentId) {
     Map<String, Object> e = svc.peek(agentId);

@@ -13,6 +13,7 @@ import { ContextPanel } from "./components/ContextPanel.js";
 import { ConversationView } from "./components/ConversationView.js";
 import { SessionList } from "./components/SessionList.js";
 import { StatusBar } from "./components/StatusBar.js";
+import { AiInboxPanel } from "./components/AiInboxPanel.js";
 import { SupervisorDashboard } from "./components/SupervisorDashboard.js";
 
 /**
@@ -51,7 +52,7 @@ export function App() {
   const [waiting, setWaiting] = useState<QueueEntry[]>([]);
   const [active, setActive] = useState<SessionView[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState<"console" | "dashboard">("console");
+  const [view, setView] = useState<"console" | "ai-inbox" | "dashboard">("console");
   const [evicted, setEvicted] = useState(false);
   const deviceIdRef = useRef<string>(getOrCreateDeviceId());
   const packetMap = useRef<Map<string, HandoffPacket>>(new Map());
@@ -214,10 +215,12 @@ export function App() {
         waitingCount={waiting.length}
         onSetStatus={onSetStatus}
       />
-      {isSupervisor ? (
-        <ViewTabs view={view} onChange={setView} />
-      ) : null}
-      {isSupervisor && view === "dashboard" ? (
+      <ViewTabs view={view} onChange={setView} isSupervisor={isSupervisor} />
+      {view === "ai-inbox" ? (
+        <div style={{ flex: 1, padding: 12, overflow: "hidden" }}>
+          <AiInboxPanel agentId={cfg.agentId} />
+        </div>
+      ) : isSupervisor && view === "dashboard" ? (
         <div style={{ flex: 1, padding: 12, overflow: "hidden" }}>
           <SupervisorDashboard
             supervisorId={cfg.agentId}
@@ -281,17 +284,22 @@ function getOrCreateDeviceId(): string {
   }
 }
 
+type ViewKey = "console" | "ai-inbox" | "dashboard";
+
 function ViewTabs({
   view,
   onChange,
+  isSupervisor,
 }: {
-  view: "console" | "dashboard";
-  onChange: (v: "console" | "dashboard") => void;
+  view: ViewKey;
+  onChange: (v: ViewKey) => void;
+  isSupervisor: boolean;
 }) {
-  const items: Array<{ k: "console" | "dashboard"; label: string }> = [
+  const items: Array<{ k: ViewKey; label: string }> = [
     { k: "console", label: "工作台" },
-    { k: "dashboard", label: "主管视图" },
+    { k: "ai-inbox", label: "AI 托管中" },
   ];
+  if (isSupervisor) items.push({ k: "dashboard", label: "主管视图" });
   return (
     <div
       style={{

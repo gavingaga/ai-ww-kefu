@@ -54,6 +54,27 @@ public class InMemorySessionRepository implements SessionRepository {
   }
 
   @Override
+  public java.util.List<Session> listByStatus(String status, int limit) {
+    int safe = Math.min(Math.max(limit, 1), 200);
+    return byId.values().stream()
+        .filter(s -> {
+          if (status == null || status.isBlank()) return true;
+          return s.getStatus() != null
+              && status.equalsIgnoreCase(s.getStatus().name());
+        })
+        .sorted((a, b) -> {
+          var at = a.getStartedAt();
+          var bt = b.getStartedAt();
+          if (at == null && bt == null) return 0;
+          if (at == null) return 1;
+          if (bt == null) return -1;
+          return bt.compareTo(at);
+        })
+        .limit(safe)
+        .toList();
+  }
+
+  @Override
   public long nextSeq(String sessionId) {
     return seqs.computeIfAbsent(sessionId, k -> new AtomicLong()).incrementAndGet();
   }

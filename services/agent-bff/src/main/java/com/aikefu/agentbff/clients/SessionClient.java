@@ -21,6 +21,11 @@ public class SessionClient {
     return client.get().uri("/v1/sessions/{id}", id).retrieve().body(new ParameterizedTypeReference<>() {});
   }
 
+  public java.util.List<Map<String, Object>> listByStatus(String status, int limit) {
+    String uri = "/v1/sessions?limit=" + limit + (status == null ? "" : "&status=" + status);
+    return client.get().uri(uri).retrieve().body(new ParameterizedTypeReference<>() {});
+  }
+
   public Map<String, Object> messages(String id, long before, int limit) {
     return client
         .get()

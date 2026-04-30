@@ -29,6 +29,14 @@ public class SessionController {
     this.sessionService = sessionService;
   }
 
+  /** 按 status 过滤会话(给坐席台「AI 托管会话」板块用)。 */
+  @GetMapping("/sessions")
+  public java.util.List<Session> list(
+      @RequestParam(value = "status", required = false) String status,
+      @RequestParam(value = "limit", defaultValue = "100") int limit) {
+    return sessionService.listByStatus(status, limit);
+  }
+
   /** 取或开当前会话。 */
   @GetMapping("/sessions/current")
   public Session current(

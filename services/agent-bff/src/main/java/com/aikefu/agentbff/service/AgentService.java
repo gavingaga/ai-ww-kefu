@@ -240,6 +240,11 @@ public class AgentService {
     return r;
   }
 
+  /** AI 托管会话列表(坐席台「AI 托管中」板块用)。 */
+  public java.util.List<Map<String, Object>> listSessionsByStatus(String status, int limit) {
+    return session.listByStatus(status, Math.max(1, Math.min(limit, 200)));
+  }
+
   /** 历史消息分页代理。 */
   public Map<String, Object> messages(String sessionId, long before, int limit) {
     return session.messages(sessionId, before, Math.max(1, Math.min(limit, 100)));

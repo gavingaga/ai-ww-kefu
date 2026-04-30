@@ -12,6 +12,10 @@ export interface ConversationViewProps {
   onAfterAction: () => void;
   /** 候选回复(从 packet.suggested_replies 拿) */
   suggestedReplies?: string[];
+  /** 只读模式(AI 托管会话查看):隐藏发送栏 / 关闭 / 转回 AI 等行动按钮 */
+  readOnly?: boolean;
+  /** 只读模式下额外操作(如「接管」按钮)— 坐席从 AI 抢过来 */
+  extraActions?: React.ReactNode;
 }
 
 export function ConversationView({
@@ -19,6 +23,8 @@ export function ConversationView({
   sessionId,
   onAfterAction,
   suggestedReplies,
+  readOnly,
+  extraActions,
 }: ConversationViewProps) {
   const [messages, setMessages] = useState<MessageView[]>([]);
   const [draft, setDraft] = useState("");
@@ -153,26 +159,45 @@ export function ConversationView({
           </span>
         ) : null}
         <span style={{ marginLeft: "auto", display: "inline-flex", gap: 6 }}>
-          <Capsule
-            size="sm"
-            variant="ghost"
-            onClick={async () => {
-              await transferToAi(agentId, sessionId);
-              onAfterAction();
-            }}
-          >
-            转回 AI
-          </Capsule>
-          <Capsule
-            size="sm"
-            variant="outline"
-            onClick={async () => {
-              await closeSession(agentId, sessionId);
-              onAfterAction();
-            }}
-          >
-            结束会话
-          </Capsule>
+          {readOnly ? (
+            <>
+              <span
+                style={{
+                  fontSize: 11,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  background: "color-mix(in srgb, var(--color-primary) 14%, transparent)",
+                  color: "var(--color-text-secondary)",
+                }}
+              >
+                AI 托管中(只读)
+              </span>
+              {extraActions}
+            </>
+          ) : (
+            <>
+              <Capsule
+                size="sm"
+                variant="ghost"
+                onClick={async () => {
+                  await transferToAi(agentId, sessionId);
+                  onAfterAction();
+                }}
+              >
+                转回 AI
+              </Capsule>
+              <Capsule
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  await closeSession(agentId, sessionId);
+                  onAfterAction();
+                }}
+              >
+                结束会话
+              </Capsule>
+            </>
+          )}
         </span>
       </header>
 
@@ -193,9 +218,9 @@ export function ConversationView({
         <div ref={bottomRef} />
       </div>
 
-      <AiSuggestionRow sessionId={sessionId} onPick={send} />
+      {!readOnly ? <AiSuggestionRow sessionId={sessionId} onPick={send} /> : null}
 
-      {suggestedReplies && suggestedReplies.length > 0 ? (
+      {!readOnly && suggestedReplies && suggestedReplies.length > 0 ? (
         <div
           style={{
             display: "flex",
@@ -224,44 +249,46 @@ export function ConversationView({
         </div>
       ) : null}
 
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          padding: "10px 12px 12px",
-          borderTop: "1px solid var(--color-border)",
-          background: "var(--color-surface)",
-        }}
-      >
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              send(draft);
-            }
-          }}
-          placeholder="输入回复;Enter 发送 / Shift+Enter 换行"
-          rows={2}
+      {!readOnly ? (
+        <div
           style={{
-            flex: 1,
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-bubble)",
-            padding: "8px 12px",
-            background: "var(--color-surface-alt)",
-            outline: "none",
-            font: "inherit",
-            fontSize: "var(--font-size-body)",
-            color: "var(--color-text-primary)",
-            resize: "none",
-            lineHeight: 1.5,
+            display: "flex",
+            gap: 8,
+            padding: "10px 12px 12px",
+            borderTop: "1px solid var(--color-border)",
+            background: "var(--color-surface)",
           }}
-        />
-        <Capsule size="md" variant="primary" onClick={() => send(draft)} disabled={!draft.trim()}>
-          发送
-        </Capsule>
-      </div>
+        >
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                send(draft);
+              }
+            }}
+            placeholder="输入回复;Enter 发送 / Shift+Enter 换行"
+            rows={2}
+            style={{
+              flex: 1,
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-bubble)",
+              padding: "8px 12px",
+              background: "var(--color-surface-alt)",
+              outline: "none",
+              font: "inherit",
+              fontSize: "var(--font-size-body)",
+              color: "var(--color-text-primary)",
+              resize: "none",
+              lineHeight: 1.5,
+            }}
+          />
+          <Capsule size="md" variant="primary" onClick={() => send(draft)} disabled={!draft.trim()}>
+            发送
+          </Capsule>
+        </div>
+      ) : null}
     </GlassCard>
   );
 }

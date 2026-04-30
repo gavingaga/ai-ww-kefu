@@ -194,6 +194,20 @@ export async function deviceHeartbeat(
   return jsonOr<DeviceHeartbeatResp>(r);
 }
 
+export interface AiSessionRow {
+  id: string;
+  status: string;
+  startedAt?: string;
+  liveContext?: Record<string, unknown>;
+  agentId?: number | null;
+}
+
+/** AI 托管中的会话列表(默认 status=ai)— 坐席台板块用。 */
+export async function listAiSessions(limit = 100): Promise<AiSessionRow[]> {
+  const r = await fetch(`/v1/agent/ai-sessions?status=ai&limit=${limit}`);
+  return jsonOr<AiSessionRow[]>(r);
+}
+
 export async function deviceRelease(agentId: number, deviceId: string): Promise<void> {
   await fetch("/v1/agent/device/release", {
     method: "POST",

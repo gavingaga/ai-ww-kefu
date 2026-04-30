@@ -19,6 +19,12 @@ public interface SessionRepository {
   Optional<Session> findCurrentByUser(long tenantId, long userId);
 
   /**
+   * 按状态枚举过滤,startedAt 倒序最多 limit 条;status=null 返全部。
+   * 坐席台「AI 托管会话」板块用 status="ai" 拉。
+   */
+  java.util.List<Session> listByStatus(String status, int limit);
+
+  /**
    * 取下一条消息的会话内 seq。
    *
    * <p>InMemory 实现用 {@code ConcurrentMap<String, AtomicLong>};Mongo 实现走
