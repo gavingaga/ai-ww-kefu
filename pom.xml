@@ -81,6 +81,13 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <configuration>
+                        <!--
+                            -parameters 让 Spring MVC @PathVariable / @RequestParam
+                            在不写显式 name 时也能拿到参数名(否则 jdk21 反射拿不到,
+                            会抛 IllegalArgumentException "Name for argument of type [long]
+                            not specified")。
+                        -->
+                        <parameters>true</parameters>
                         <annotationProcessorPaths>
                             <path>
                                 <groupId>org.projectlombok</groupId>
